@@ -97,7 +97,10 @@ steps:
         exit 0
       fi
 
-      echo "Triggering BQ scheduled queries (data sync DEV → PRD)..."
+      SYNC_SA="svc-ai-platform-ops@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com"
+      echo "Triggering BQ scheduled queries as $SYNC_SA (data sync DEV → PRD)..."
+
+      gcloud config set auth/impersonate_service_account "$SYNC_SA"
 
       CONFIGS="
         projects/383386831981/locations/us/transferConfigs/69bd0a50-0000-265e-8341-34c7e9483343
@@ -117,6 +120,8 @@ steps:
           FAILED=1
         fi
       done
+
+      gcloud config unset auth/impersonate_service_account
 
       if [ "$FAILED" -eq 1 ]; then
         echo "Some sync triggers failed — check above for details."
