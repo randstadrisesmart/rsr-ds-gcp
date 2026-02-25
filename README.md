@@ -1,31 +1,64 @@
-# Managing infrastructure as code with Terraform, Cloud Build, and GitOps
+# rsr-ds-gcp
 
-This is the repo for the [Managing infrastructure as code with Terraform, Cloud Build, and GitOps](https://cloud.google.com/solutions/managing-infrastructure-as-code) tutorial. This tutorial explains how to manage infrastructure as code with Terraform and Cloud Build using the popular GitOps methodology. 
+Infrastructure as Code for the RSR Data Science Group CI/CD platform.
 
-## Configuring your **dev** environment
+Forked from [GoogleCloudPlatform/solutions-terraform-cloudbuild-gitops](https://github.com/GoogleCloudPlatform/solutions-terraform-cloudbuild-gitops). See the [tutorial](https://cloud.google.com/docs/terraform/resource-management/managing-infrastructure-as-code) for the GitOps pattern.
 
-Just for demostration, this step will:
- 1. Configure an apache2 http server on network '**dev**' and subnet '**dev**-subnet-01'
- 2. Open port 80 on firewall for this http server 
+## Architecture
 
-```bash
-cd ../environments/dev
-terraform init
-terraform plan
-terraform apply
-terraform destroy
+Three GCP projects, managed by environment branches:
+
+| Branch | Project | What it manages |
+|--------|---------|----------------|
+| `ops` | `rsr-ds-group-ops-d0b0` | Cloud Build triggers, per-service build SAs, PubSub, Artifact Registry, Secret Manager, monitoring |
+| `dev` | `rsr-ds-group-dev-f193` | Runtime SA (`svc-ai-platform@dev`) + IAM bindings |
+| `prd` | `rsr-ds-group-prd-83ad` | Runtime SA (`svc-ai-platform@prd`) + IAM bindings + Cloud Run service definitions |
+
+## How it works
+
+Push to a branch named after an environment → Cloud Build runs `terraform apply` for that environment. Push to any other branch → `terraform plan` only (validation, no changes).
+
+```
+feature branch → terraform plan (CI check)
+       ↓ merge
+ops/dev/prd branch → terraform apply (deploys infra)
 ```
 
-## Promoting your environment to **production**
+## Modules
 
-Once you have tested your app (in this example an apache2 http server), you can promote your configuration to prodution. This step will:
- 1. Configure an apache2 http server on network '**prod**' and subnet '**prod**-subnet-01'
- 2. Open port 80 on firewall for this http server 
+| Module | Purpose |
+|--------|---------|
+| `build-service-account` | Per-service Cloud Build SA + 7 IAM role bindings (AR writer, run.admin, SA user on DEV+PRD, secret accessor on OPS) |
+| `cloud-build-trigger` | Dev trigger (push to main) + prod trigger (tag + manual approval) per service |
+| `cloud-run-service` | Cloud Run service definition with scaling, env vars, no-public-access |
+| `project-iam` | Runtime SA (`svc-ai-platform`) + roles (run.invoker, BQ, Secret Manager) |
+
+## Adding a new service
+
+1. Add a row to `environments/ops/cloud-build.tf` → `local.services`
+2. Push to `ops` branch → creates build SA + Cloud Build triggers
+3. Add a Cloud Run module in `environments/prd/main.tf` (if PRD needs specific scaling)
+4. Push to `prd` branch → creates the service definition
+
+## Local usage
 
 ```bash
-cd ../prod
+# Authenticate
+gcloud auth application-default login
+
+# Plan (dry run)
+cd environments/ops
 terraform init
 terraform plan
+
+# Apply
 terraform apply
-terraform destroy
 ```
+
+## Terraform state
+
+Stored in GCS: `rsr-ds-group-ops-terraform-state` bucket, prefixed by environment (`ops/`, `dev/`, `prd/`).
+
+## Reference
+
+Full architecture details: see `CICD_ARCHITECTURE_RSR.md` in the apilegacy repo.

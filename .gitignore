@@ -1,3 +1,9 @@
 .terraform*
 *.tfstate*
 *.tfplan
+.terraform.lock.hcl
+
+# Credentials
+*.json
+*.pem
+*.key
