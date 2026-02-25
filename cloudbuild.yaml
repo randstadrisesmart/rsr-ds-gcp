@@ -97,33 +97,24 @@ steps:
         exit 0
       fi
 
-      SYNC_SA="svc-ai-platform-ops@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com"
-      echo "Triggering BQ scheduled queries as $SYNC_SA (data sync DEV → PRD)..."
+      echo "Triggering BQ scheduled queries as svc-ai-platform-ops (data sync DEV → PRD)..."
 
-      gcloud config set auth/impersonate_service_account "$SYNC_SA"
+      gcloud config set auth/impersonate_service_account svc-ai-platform-ops@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com
 
-      CONFIGS="
-        projects/383386831981/locations/us/transferConfigs/69bd0a50-0000-265e-8341-34c7e9483343
-        projects/383386831981/locations/europe/transferConfigs/69bf5fbc-0000-255c-9673-d4f547fdbf74
-        projects/383386831981/locations/us-east1/transferConfigs/69961a82-0000-2512-b232-883d24fc7848
-        projects/383386831981/locations/europe-west1/transferConfigs/6999f2d7-0000-2b65-a30c-582429a8ef40
+      for CONFIG in \
+        projects/383386831981/locations/us/transferConfigs/69bd0a50-0000-265e-8341-34c7e9483343 \
+        projects/383386831981/locations/europe/transferConfigs/69bf5fbc-0000-255c-9673-d4f547fdbf74 \
+        projects/383386831981/locations/us-east1/transferConfigs/69961a82-0000-2512-b232-883d24fc7848 \
+        projects/383386831981/locations/europe-west1/transferConfigs/6999f2d7-0000-2b65-a30c-582429a8ef40 \
         projects/383386831981/locations/australia-southeast1/transferConfigs/69952757-0000-221b-996d-089e08280c1c
-      "
-
-      RUN_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-      FAILED=0
-
-      for CONFIG in $CONFIGS; do
-        echo "Triggering: $CONFIG"
-        if ! bq mk --transfer_run --run_time="$RUN_TIME" "$CONFIG"; then
-          echo "WARNING: Failed to trigger $CONFIG"
-          FAILED=1
-        fi
+      do
+        echo "Triggering: $$CONFIG"
+        bq mk --transfer_run --run_time="$$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$CONFIG" || FAILED=1
       done
 
       gcloud config unset auth/impersonate_service_account
 
-      if [ "$FAILED" -eq 1 ]; then
+      if [ "$${FAILED:-0}" -eq 1 ]; then
         echo "Some sync triggers failed — check above for details."
         exit 1
       fi
