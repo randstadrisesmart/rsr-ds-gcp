@@ -7,7 +7,9 @@ locals {
   services = {
     test-iap-api = {
       repo        = "rsr-ds-test-iap-api"
-      sync_tables = []
+      sync_tables = [
+        { dataset_name = "test_iap_api", table_name = "smoke_test", sync_frequency = "once", region = "us-east1" },
+      ]
     }
   }
 }
