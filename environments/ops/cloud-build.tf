@@ -1,17 +1,6 @@
-# Per-service Cloud Build triggers + build SAs + data sync config
-#
-# Add a new service: add a row to local.services (with optional sync_tables),
-# terraform apply. The sync_tables entries drive the tracked_tables VIEWs
-# that the nightly BQ Scheduled Queries read from.
+# Per-service Cloud Build triggers + build SAs
 
 locals {
-  services = {
-    test-iap-api = {
-      repo        = "rsr-ds-test-iap-api"
-      sync_tables = []
-    }
-  }
-
   # Flatten all sync_tables across services into a single list.
   # Each entry gets the service name and a hardcoded src_project.
   all_sync_entries = flatten([
