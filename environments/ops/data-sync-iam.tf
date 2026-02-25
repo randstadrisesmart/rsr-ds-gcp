@@ -22,3 +22,11 @@ resource "google_project_iam_member" "sync_write_prd" {
   role    = "roles/bigquery.dataOwner"
   member  = "serviceAccount:${google_service_account.data_sync.email}"
 }
+
+# Allow Cloud Build default SA to impersonate the sync SA
+# so the post-apply step can trigger BQ scheduled queries
+resource "google_service_account_iam_member" "cloudbuild_impersonate_sync" {
+  service_account_id = google_service_account.data_sync.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:383386831981@cloudbuild.gserviceaccount.com"
+}
