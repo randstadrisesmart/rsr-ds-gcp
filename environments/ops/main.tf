@@ -66,7 +66,9 @@ resource "google_secret_manager_secret" "deploy_keys" {
   for_each  = local.services
   project   = "rsr-ds-group-ops-d0b0"
   secret_id = "ssh-deploy-key-${each.key}"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
 }
 
 # ── Build failure alert ─────────────────────────────────────
