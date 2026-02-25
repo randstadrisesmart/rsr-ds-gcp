@@ -35,10 +35,30 @@ ops/dev/prd branch → terraform apply (deploys infra)
 
 ## Adding a new service
 
-1. Add a row to `environments/ops/cloud-build.tf` → `local.services`
-2. Push to `ops` branch → creates build SA + Cloud Build triggers
+1. Add a row to `environments/ops/cloud-build.tf` → `local.services` with `repo` and `sync_tables`
+2. Push to `ops` branch → creates build SA, Cloud Build triggers, and updates `tracked_tables` VIEWs
 3. Add a Cloud Run module in `environments/prd/main.tf` (if PRD needs specific scaling)
 4. Push to `prd` branch → creates the service definition
+
+Example with data sync:
+
+```hcl
+my-service = {
+  repo        = "rsr-ds-my-service"
+  sync_tables = [
+    { dataset_name = "my_dataset", table_name = "my_table", sync_frequency = "daily", region = "us-east1" },
+  ]
+}
+```
+
+If the service has no tables to sync, use `sync_tables = []`.
+
+## Removing a service
+
+1. **OPS:** Remove the service from `local.services` in `environments/ops/cloud-build.tf` → push to `ops` → destroys build SA, triggers, and removes tables from sync VIEWs
+2. **PRD:** Remove the Cloud Run module from `environments/prd/main.tf` → push to `prd`
+3. **BQ (manual):** Delete any orphaned datasets/tables in DEV and PRD if no longer needed
+4. **GitHub:** Archive the service repo
 
 ## Local usage
 
