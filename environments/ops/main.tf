@@ -76,6 +76,7 @@ resource "google_secret_manager_secret" "deploy_keys" {
 resource "google_monitoring_alert_policy" "build_failures" {
   project      = "rsr-ds-group-ops-d0b0"
   display_name = "Cloud Build Failures"
+  combiner     = "OR"
 
   conditions {
     display_name = "Build failed"
