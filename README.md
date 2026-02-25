@@ -12,7 +12,7 @@ Three GCP projects, managed by environment branches:
 |--------|---------|----------------|
 | `ops` | `rsr-ds-group-ops-d0b0` | Cloud Build triggers, per-service build SAs, PubSub, Artifact Registry, Secret Manager, monitoring |
 | `dev` | `rsr-ds-group-dev-f193` | Runtime SA (`svc-ai-platform@dev`) + IAM bindings |
-| `prd` | `rsr-ds-group-prd-83ad` | Runtime SA (`svc-ai-platform@prd`) + IAM bindings + Cloud Run service definitions |
+| `prod` | `rsr-ds-group-prd-83ad` | Runtime SA (`svc-ai-platform@prd`) + IAM bindings + Cloud Run service definitions |
 
 ## How it works
 
@@ -21,7 +21,7 @@ Push to a branch named after an environment → Cloud Build runs `terraform appl
 ```
 feature branch → terraform plan (CI check)
        ↓ merge
-ops/dev/prd branch → terraform apply (deploys infra)
+ops/dev/prod branch → terraform apply (deploys infra)
 ```
 
 ## Modules
@@ -38,8 +38,8 @@ ops/dev/prd branch → terraform apply (deploys infra)
 1. Authorize the new service repo in [Cloud Build → Repositories](https://console.cloud.google.com/cloud-build/repositories?project=rsr-ds-group-ops-d0b0) (GitHub connection)
 2. Add a row to `environments/ops/services.tf` → `local.services` with `repo` and `sync_tables`
 3. Push to `ops` branch → creates build SA, Cloud Build triggers, and updates `tracked_tables` VIEWs
-4. Add a Cloud Run module in `environments/prd/main.tf` (if PRD needs specific scaling)
-5. Push to `prd` branch → creates the service definition
+4. Add a Cloud Run module in `environments/prod/main.tf` (if PRD needs specific scaling)
+5. Push to `prod` branch → creates the service definition
 
 Example with data sync:
 
@@ -57,7 +57,7 @@ If the service has no tables to sync, use `sync_tables = []`.
 ## Removing a service
 
 1. **OPS:** Remove the service from `local.services` in `environments/ops/cloud-build.tf` → push to `ops` → destroys build SA, triggers, and removes tables from sync VIEWs
-2. **PRD:** Remove the Cloud Run module from `environments/prd/main.tf` → push to `prd`
+2. **PRD:** Remove the Cloud Run module from `environments/prod/main.tf` → push to `prod`
 3. **BQ (manual):** Delete any orphaned datasets/tables in DEV and PRD if no longer needed
 4. **GitHub:** Archive the service repo
 
@@ -78,7 +78,7 @@ terraform apply
 
 ## Terraform state
 
-Stored in GCS: `rsr-ds-group-ops-terraform-state` bucket, prefixed by environment (`ops/`, `dev/`, `prd/`).
+Stored in GCS: `rsr-ds-group-ops-terraform-state` bucket, prefixed by environment (`ops/`, `dev/`, `prod/`).
 
 ## Reference
 

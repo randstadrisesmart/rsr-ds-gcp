@@ -9,7 +9,7 @@
 # Environments:
 #   ops — Cloud Build triggers, build SAs, PubSub, Artifact Registry, secrets
 #   dev — Runtime SA + IAM for rsr-ds-group-dev-f193
-#   prd — Runtime SA + IAM + Cloud Run service defs for rsr-ds-group-prd-83ad
+#   prod — Runtime SA + IAM + Cloud Run service defs for rsr-ds-group-prd-83ad
 
 steps:
 - id: 'branch name'
@@ -81,7 +81,7 @@ steps:
         terraform apply -auto-approve
       else
         echo "***************************** SKIPPING APPLY *************************************"
-        echo "Branch '$BRANCH_NAME' does not match an environment (ops, dev, prd)."
+        echo "Branch '$BRANCH_NAME' does not match an environment (ops, dev, prod)."
         echo "Only plan was run. Merge to an environment branch to apply."
         echo "*********************************************************************************"
       fi
