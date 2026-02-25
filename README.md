@@ -35,10 +35,11 @@ ops/dev/prd branch → terraform apply (deploys infra)
 
 ## Adding a new service
 
-1. Add a row to `environments/ops/cloud-build.tf` → `local.services` with `repo` and `sync_tables`
-2. Push to `ops` branch → creates build SA, Cloud Build triggers, and updates `tracked_tables` VIEWs
-3. Add a Cloud Run module in `environments/prd/main.tf` (if PRD needs specific scaling)
-4. Push to `prd` branch → creates the service definition
+1. Authorize the new service repo in [Cloud Build → Repositories](https://console.cloud.google.com/cloud-build/repositories?project=rsr-ds-group-ops-d0b0) (GitHub connection)
+2. Add a row to `environments/ops/services.tf` → `local.services` with `repo` and `sync_tables`
+3. Push to `ops` branch → creates build SA, Cloud Build triggers, and updates `tracked_tables` VIEWs
+4. Add a Cloud Run module in `environments/prd/main.tf` (if PRD needs specific scaling)
+5. Push to `prd` branch → creates the service definition
 
 Example with data sync:
 
