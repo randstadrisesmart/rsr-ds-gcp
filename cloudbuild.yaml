@@ -86,5 +86,44 @@ steps:
         echo "*********************************************************************************"
       fi
 
+- id: 'trigger sync'
+  name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  entrypoint: 'sh'
+  args:
+  - '-c'
+  - |
+      if [ "$BRANCH_NAME" != "ops" ]; then
+        echo "Skipping sync trigger — only runs on ops branch."
+        exit 0
+      fi
+
+      echo "Triggering BQ scheduled queries (data sync DEV → PRD)..."
+
+      CONFIGS="
+        projects/383386831981/locations/us/transferConfigs/69bd0a50-0000-265e-8341-34c7e9483343
+        projects/383386831981/locations/europe/transferConfigs/69bf5fbc-0000-255c-9673-d4f547fdbf74
+        projects/383386831981/locations/us-east1/transferConfigs/69961a82-0000-2512-b232-883d24fc7848
+        projects/383386831981/locations/europe-west1/transferConfigs/6999f2d7-0000-2b65-a30c-582429a8ef40
+        projects/383386831981/locations/australia-southeast1/transferConfigs/69952757-0000-221b-996d-089e08280c1c
+      "
+
+      RUN_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      FAILED=0
+
+      for CONFIG in $CONFIGS; do
+        echo "Triggering: $CONFIG"
+        if ! bq mk --transfer_run --run_time="$RUN_TIME" "$CONFIG"; then
+          echo "WARNING: Failed to trigger $CONFIG"
+          FAILED=1
+        fi
+      done
+
+      if [ "$FAILED" -eq 1 ]; then
+        echo "Some sync triggers failed — check above for details."
+        exit 1
+      fi
+
+      echo "All 5 sync queries triggered."
+
 options:
   logging: CLOUD_LOGGING_ONLY
