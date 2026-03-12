@@ -1,0 +1,101 @@
+# deploy/dev-build.yaml — GPU variant (nvidia-l4)
+#
+# Triggered by: push to main branch
+# SA: svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com
+#
+# For services that require GPU (e.g. ollama with llama.cpp).
+# Copy this file to your service repo at deploy/dev-build.yaml
+# and change _SERVICE_NAME and _REGION.
+#
+# NOTE: GPU services use a pre-built base image containing the model
+# and inference runtime. Only the application code is built by this
+# pipeline. Rebuild the base image manually when the model changes.
+
+substitutions:
+  _SERVICE_NAME: CHANGE_ME             # e.g. ollama
+  _REGION: us-central1                 # GPU L4 availability — check region support
+  _PROJECT_DEV: rsr-ds-group-dev-f193
+  _ENV: dev
+
+steps:
+  # ─── TEST ───────────────────────────────────────────────
+  - id: 'test'
+    name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install -r requirements.txt -r requirements-test.txt
+        pytest tests/ --cov=server --cov-report=term-missing
+
+  # ─── LINT ───────────────────────────────────────────────
+  - id: 'lint'
+    name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install ruff
+        ruff check server.py
+
+  # ─── BUILD ──────────────────────────────────────────────
+  - id: 'build'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:latest'
+      - '.'
+    waitFor: ['test', 'lint']
+
+  # ─── PUSH ──────────────────────────────────────────────
+  - id: 'push'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}'
+    waitFor: ['build']
+
+  # ─── DEPLOY TO DEV ─────────────────────────────────────
+  - id: 'deploy-dev'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}'
+      - '--project=${_PROJECT_DEV}'
+      - '--region=${_REGION}'
+      - '--service-account=svc-ai-platform@${_PROJECT_DEV}.iam.gserviceaccount.com'
+      - '--set-env-vars=ENV=${_ENV},BQ_PROJECT=${_PROJECT_DEV},GOOGLE_CLOUD_PROJECT=${_PROJECT_DEV}'
+      - '--no-allow-unauthenticated'
+      - '--gpu=1'
+      - '--gpu-type=nvidia-l4'
+      - '--memory=32Gi'
+      - '--cpu=8'
+      - '--timeout=600'
+      - '--concurrency=40'
+      - '--min-instances=0'
+      - '--max-instances=1'
+      - '--no-cpu-throttling'
+    waitFor: ['push']
+
+  # ─── NOTIFY SUCCESS (PubSub) ───────────────────────────
+  - id: 'notify'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'pubsub'
+      - 'topics'
+      - 'publish'
+      - 'pipelines_build_status'
+      - '--project=rsr-ds-group-ops-d0b0'
+      - '--message={"service":"${_SERVICE_NAME}","status":"success","commit":"${COMMIT_SHA}","env":"dev"}'
+    waitFor: ['deploy-dev']
+
+options:
+  logging: CLOUD_LOGGING_ONLY

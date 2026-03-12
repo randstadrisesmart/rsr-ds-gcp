@@ -1,0 +1,87 @@
+# deploy/dev-build.yaml — Standard (no GPU)
+#
+# Triggered by: push to main branch
+# SA: svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com
+#
+# Copy this file to your service repo at deploy/dev-build.yaml
+# and change _SERVICE_NAME to your service name.
+
+substitutions:
+  _SERVICE_NAME: CHANGE_ME             # e.g. taxonomy, langapi, digitaltwin
+  _REGION: us-east1
+  _PROJECT_DEV: rsr-ds-group-dev-f193
+  _ENV: dev
+
+steps:
+  # ─── TEST ───────────────────────────────────────────────
+  - id: 'test'
+    name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install -r requirements.txt -r requirements-test.txt
+        pytest tests/ --cov=src --cov-report=term-missing
+
+  # ─── LINT ───────────────────────────────────────────────
+  - id: 'lint'
+    name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install ruff
+        ruff check src/
+
+  # ─── BUILD ──────────────────────────────────────────────
+  - id: 'build'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:latest'
+      - '.'
+    waitFor: ['test', 'lint']
+
+  # ─── PUSH ──────────────────────────────────────────────
+  - id: 'push'
+    name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}'
+    waitFor: ['build']
+
+  # ─── DEPLOY TO DEV ─────────────────────────────────────
+  - id: 'deploy-dev'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}'
+      - '--project=${_PROJECT_DEV}'
+      - '--region=${_REGION}'
+      - '--service-account=svc-ai-platform@${_PROJECT_DEV}.iam.gserviceaccount.com'
+      - '--set-env-vars=ENV=${_ENV},BQ_PROJECT=${_PROJECT_DEV},GOOGLE_CLOUD_PROJECT=${_PROJECT_DEV}'
+      - '--no-allow-unauthenticated'
+    waitFor: ['push']
+
+  # ─── NOTIFY SUCCESS (PubSub) ───────────────────────────
+  - id: 'notify'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'pubsub'
+      - 'topics'
+      - 'publish'
+      - 'pipelines_build_status'
+      - '--project=rsr-ds-group-ops-d0b0'
+      - '--message={"service":"${_SERVICE_NAME}","status":"success","commit":"${COMMIT_SHA}","env":"dev"}'
+    waitFor: ['deploy-dev']
+
+options:
+  logging: CLOUD_LOGGING_ONLY
