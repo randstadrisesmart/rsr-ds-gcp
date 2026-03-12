@@ -20,9 +20,10 @@ locals {
 
 # Create per-service build SAs
 module "build_sa" {
-  for_each     = local.services
-  source       = "../../modules/build-service-account"
-  service_name = each.key
+  for_each           = local.services
+  source             = "../../modules/build-service-account"
+  service_name       = each.key
+  build_status_topic = google_pubsub_topic.build_status.name
 }
 
 # Create per-service Cloud Build triggers
