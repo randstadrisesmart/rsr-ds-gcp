@@ -28,38 +28,21 @@ ops/dev/prod branch → terraform apply (deploys infra)
 
 | Module | Purpose |
 |--------|---------|
-| `build-service-account` | Per-service Cloud Build SA + 7 IAM role bindings (AR writer, run.admin, SA user on DEV+PRD, secret accessor on OPS) |
+| `build-service-account` | Per-service Cloud Build SA + deploy key accessor + PubSub publisher (cross-project IAM managed by infra team) |
 | `cloud-build-trigger` | Dev trigger (push to main) + prod trigger (tag + manual approval) per service |
 | `cloud-run-service` | Cloud Run service definition with scaling, env vars, no-public-access |
 | `project-iam` | Runtime SA (`svc-ai-platform`) + roles (run.invoker, BQ, Secret Manager) |
 
-## Adding a new service
+## Guides
 
-1. Authorize the new service repo in [Cloud Build → Repositories](https://console.cloud.google.com/cloud-build/repositories?project=rsr-ds-group-ops-d0b0) (GitHub connection)
-2. Add a row to `environments/ops/services.tf` → `local.services` with `repo` and `sync_tables`
-3. Push to `ops` branch → creates build SA, Cloud Build triggers, and updates `tracked_tables` VIEWs
-4. Add a Cloud Run module in `environments/prod/main.tf` (if PRD needs specific scaling)
-5. Push to `prod` branch → creates the service definition
+| Guide | When to use |
+|-------|------------|
+| [`docs/ONBOARDING.md`](docs/ONBOARDING.md) | Adding a new service to the CI/CD pipeline |
+| [`docs/WORKFLOW.md`](docs/WORKFLOW.md) | Day-to-day development: branching, PRs, deploying to DEV and PRD |
+| [`docs/OFFBOARDING.md`](docs/OFFBOARDING.md) | Removing a service and cleaning up all resources |
+| [`docs/CICD_ARCHITECTURE_RSR.md`](docs/CICD_ARCHITECTURE_RSR.md) | Architecture reference for the CI/CD pipeline |
 
-Example with data sync:
-
-```hcl
-my-service = {
-  repo        = "rsr-ds-my-service"
-  sync_tables = [
-    { dataset_name = "my_dataset", table_name = "my_table", sync_frequency = "daily", region = "us-east1" },
-  ]
-}
-```
-
-If the service has no tables to sync, use `sync_tables = []`.
-
-## Removing a service
-
-1. **OPS:** Remove the service from `local.services` in `environments/ops/cloud-build.tf` → push to `ops` → destroys build SA, triggers, and removes tables from sync VIEWs
-2. **PRD:** Remove the Cloud Run module from `environments/prod/main.tf` → push to `prod`
-3. **BQ (manual):** Delete any orphaned datasets/tables in DEV and PRD if no longer needed
-4. **GitHub:** Archive the service repo
+Build yaml templates are in `templates/deploy/` (standard) and `templates/deploy-gpu/` (GPU).
 
 ## Local usage
 

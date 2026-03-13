@@ -32,4 +32,5 @@ module "cloud_build_trigger" {
   service_name = each.key
   github_repo  = each.value.repo
   build_sa     = module.build_sa[each.key].build_sa_email
+  region       = lookup(each.value, "region", "us-east1")
 }
