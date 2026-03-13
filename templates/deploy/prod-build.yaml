@@ -1,0 +1,55 @@
+# deploy/prod-build.yaml — Standard (no GPU)
+#
+# Triggered by: tag matching {service}-v*
+# SA: svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com
+# Approval: MANUAL (Cloud Build approval gate)
+#
+# Copy this file to your service repo at deploy/prod-build.yaml
+# and change _SERVICE_NAME to your service name.
+
+substitutions:
+  _SERVICE_NAME: CHANGE_ME             # e.g. taxonomy, langapi, digitaltwin
+  _REGION: us-east1
+  _PROJECT_DEV: rsr-ds-group-dev-f193
+  _PROJECT_PRD: rsr-ds-group-prd-83ad
+  _ENV: prd
+
+steps:
+  # ─── COPY IMAGE: DEV AR → PRD AR ──────────────────────
+  - id: 'copy-image'
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        docker pull ${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}
+        docker tag \
+          ${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA} \
+          ${_REGION}-docker.pkg.dev/${_PROJECT_PRD}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}
+        docker push ${_REGION}-docker.pkg.dev/${_PROJECT_PRD}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}
+
+        # Also tag as latest in prod
+        docker tag \
+          ${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA} \
+          ${_REGION}-docker.pkg.dev/${_PROJECT_PRD}/docker-images/${_SERVICE_NAME}:latest
+        docker push ${_REGION}-docker.pkg.dev/${_PROJECT_PRD}/docker-images/${_SERVICE_NAME}:latest
+
+  # ─── DEPLOY TO PRD ─────────────────────────────────────
+  - id: 'deploy-prd'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/${_PROJECT_PRD}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}'
+      - '--project=${_PROJECT_PRD}'
+      - '--region=${_REGION}'
+      - '--service-account=svc-ai-platform@${_PROJECT_PRD}.iam.gserviceaccount.com'
+      - '--set-env-vars=ENV=${_ENV},BQ_PROJECT=${_PROJECT_PRD},GOOGLE_CLOUD_PROJECT=${_PROJECT_PRD}'
+      - '--no-allow-unauthenticated'
+      - '--min-instances=1'
+    waitFor: ['copy-image']
+
+options:
+  logging: CLOUD_LOGGING_ONLY

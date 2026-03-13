@@ -74,33 +74,15 @@ resource "google_service_account" "data_sync" {
   display_name = "AI Platform Ops SA (BQ data sync scheduled queries)"
 }
 
-# ── Shared secrets ──────────────────────────────────────────
-
-resource "google_secret_manager_secret" "brandwatch_api_key" {
-  project   = "rsr-ds-group-ops-d0b0"
-  secret_id = "brandwatch-api-key"
-  replication { auto {} }
-}
-
-resource "google_secret_manager_secret" "thinknum_api_key" {
-  project   = "rsr-ds-group-ops-d0b0"
-  secret_id = "thinknum-api-key"
-  replication { auto {} }
-}
-
-resource "google_secret_manager_secret" "elasticsearch_password" {
-  project   = "rsr-ds-group-ops-d0b0"
-  secret_id = "elasticsearch-password"
-  replication { auto {} }
-}
-
 # ── SSH deploy keys (one per service repo) ──────────────────
 
 resource "google_secret_manager_secret" "deploy_keys" {
   for_each  = local.services
   project   = "rsr-ds-group-ops-d0b0"
   secret_id = "ssh-deploy-key-${each.key}"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
 }
 
 # ── Build failure alert ─────────────────────────────────────
@@ -108,6 +90,7 @@ resource "google_secret_manager_secret" "deploy_keys" {
 resource "google_monitoring_alert_policy" "build_failures" {
   project      = "rsr-ds-group-ops-d0b0"
   display_name = "Cloud Build Failures"
+  combiner     = "OR"
 
   conditions {
     display_name = "Build failed"

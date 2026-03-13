@@ -1,9 +1,5 @@
 # Service registry — edit this file to add/remove services and sync tables.
 #
-<<<<<<< Updated upstream
-# Each service needs a repo name. Add sync_tables to declare BQ tables
-# that should be zero-copy cloned DEV → PRD by the nightly scheduled queries.
-=======
 # Each service needs:
 #   repo        — GitHub repo name under randstadrisesmart/
 #   region      — (optional, default "us-east1") Cloud Run / AR region for triggers
@@ -21,7 +17,6 @@
 #                      "monthly" — clone on the 1st of the month (or if table doesn't exist)
 #   region         — BQ location: "US", "EU", "us-east1", "europe-west1", "australia-southeast1"
 #   enabled        — (optional, default true) set to false to pause sync
->>>>>>> Stashed changes
 
 locals {
   services = {
@@ -31,13 +26,10 @@ locals {
         { dataset_name = "test_iap_api", table_name = "smoke_test", sync_frequency = "once", region = "us-east1" },
       ]
     }
-<<<<<<< Updated upstream
-=======
     ollama = {
       repo        = "rsr-ds-ollama"
       region      = "us-central1"       # GPU (nvidia-l4) availability
       sync_tables = []
     }
->>>>>>> Stashed changes
   }
 }
