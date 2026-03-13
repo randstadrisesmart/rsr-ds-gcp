@@ -66,6 +66,20 @@ resource "google_artifact_registry_repository" "prd_docker_us_central1" {
   format        = "DOCKER"
 }
 
+resource "google_artifact_registry_repository" "dev_docker_europe_west1" {
+  project       = "rsr-ds-group-dev-f193"
+  location      = "europe-west1"
+  repository_id = "docker-images"
+  format        = "DOCKER"
+}
+
+resource "google_artifact_registry_repository" "prd_docker_europe_west1" {
+  project       = "rsr-ds-group-prd-83ad"
+  location      = "europe-west1"
+  repository_id = "docker-images"
+  format        = "DOCKER"
+}
+
 # ── Data sync SA ────────────────────────────────────────────
 
 resource "google_service_account" "data_sync" {

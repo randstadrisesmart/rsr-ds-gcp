@@ -398,8 +398,6 @@ everything works to your satisfaction before promoting to production.
 Once dev is verified, create a release tag:
 
 ```bash
-git checkout main
-git pull
 git tag {service}-v1.0.0
 git push origin {service}-v1.0.0
 ```
@@ -407,11 +405,13 @@ git push origin {service}-v1.0.0
 The `{service}-prd` trigger fires. Go to Cloud Build console → approve the
 build → deploys to PRD.
 
+### Verify PRD
+
+Perform smoke tests against the PRD deployment to confirm everything is
+working correctly in production.
+
 ---
 
-## Reference
+## 11. Celebrate
 
-- Day-to-day workflow: `docs/WORKFLOW.md`
-- Architecture: `docs/CICD_ARCHITECTURE_RSR.md`
-- Build templates: `templates/deploy/` and `templates/deploy-gpu/`
-- Terraform modules: `modules/`
+You're done. Your service is live in production with a full CI/CD pipeline.
