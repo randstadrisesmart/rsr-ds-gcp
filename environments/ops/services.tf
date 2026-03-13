@@ -3,7 +3,7 @@
 # Each service needs:
 #   repo        — GitHub repo name under randstadrisesmart/
 #   region      — (optional, default "us-east1") Cloud Run / AR region for triggers
-#                 use "us-central1" for GPU services (nvidia-l4 availability)
+#                 GPU (nvidia-l4) regions: europe-west1, us-central1, us-east4, etc.
 #   sync_tables — list of BQ tables to zero-copy clone DEV → PRD nightly
 #                 use sync_tables = [] if the service has no BQ tables
 #
@@ -28,7 +28,7 @@ locals {
     }
     ollama = {
       repo        = "rsr-ds-ollama"
-      region      = "us-central1"       # GPU (nvidia-l4) availability
+      region      = "europe-west1"       # GPU (nvidia-l4) availability
       sync_tables = []
     }
   }
