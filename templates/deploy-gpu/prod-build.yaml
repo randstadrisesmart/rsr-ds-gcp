@@ -55,7 +55,7 @@ steps:
       - '--cpu=8'
       - '--timeout=600'
       - '--concurrency=40'
-      - '--min-instances=1'
+      - '--min-instances=0'
       - '--max-instances=1'
       - '--no-cpu-throttling'
     waitFor: ['copy-image']
