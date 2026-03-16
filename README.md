@@ -28,7 +28,7 @@ ops/dev/prod branch → terraform apply (deploys infra)
 
 | Module | Purpose |
 |--------|---------|
-| `build-service-account` | Per-service Cloud Build SA + deploy key accessor + PubSub publisher (cross-project IAM managed by infra team) |
+| `build-service-account` | Per-service Cloud Build SA + PubSub publisher (cross-project IAM managed by infra team) |
 | `cloud-build-trigger` | Dev trigger (push to main) + prod trigger (tag + manual approval) per service |
 | `cloud-run-service` | Cloud Run service definition with scaling, env vars, no-public-access |
 | `project-iam` | Runtime SA (`svc-ai-platform`) + roles (run.invoker, BQ, Secret Manager) |

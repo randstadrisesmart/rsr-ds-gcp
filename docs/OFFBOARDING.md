@@ -82,7 +82,6 @@ git push origin prod
 
 Terraform will destroy:
 - Build SA (`svc-build-{service}@ops`)
-- SSH deploy key secret accessor grant
 - PubSub publisher grant
 - Cloud Build triggers (if managed by Terraform)
 - Sync table VIEW entries (if `sync_tables` was configured)
@@ -112,23 +111,7 @@ team (not Terraform). Submit a ticket to remove them:
 
 ---
 
-## 5. Delete the SSH Deploy Key Secret
-
-Remove the private key from OPS Secret Manager:
-
-```bash
-# List versions to confirm
-gcloud secrets versions list ssh-deploy-key-{service} \
-  --project=rsr-ds-group-ops-d0b0
-
-# Delete the secret entirely
-gcloud secrets delete ssh-deploy-key-{service} \
-  --project=rsr-ds-group-ops-d0b0
-```
-
----
-
-## 6. Delete Cloud Run Services
+## 5. Delete Cloud Run Services
 
 Delete the service from both environments:
 
@@ -148,7 +131,7 @@ Replace `{region}` with the service's region (e.g. `us-east1` or `us-central1`).
 
 ---
 
-## 7. Clean Up Container Images
+## 6. Clean Up Container Images
 
 Remove images from Artifact Registry in both environments:
 
@@ -176,7 +159,7 @@ gcloud container images delete gcr.io/rsr-ds-group-dev-f193/{service}-base
 
 ---
 
-## 8. Clean Up BigQuery (if applicable)
+## 7. Clean Up BigQuery (if applicable)
 
 If the service had `sync_tables` entries, the sync VIEW was already updated
 in Step 3 (Terraform removes the entries). But the actual tables in DEV and
@@ -201,7 +184,7 @@ confirmation. Double-check the dataset name before running.
 
 ---
 
-## 9. Archive the GitHub Repo
+## 8. Archive the GitHub Repo
 
 Go to the repo on GitHub → **Settings → General → Danger Zone → Archive this repository**
 
@@ -219,7 +202,6 @@ Do NOT delete the repo — archived repos are free and the history may be useful
 - [ ] Service removed from `services.tf` and `main.tf`
 - [ ] Terraform applied on `ops` (and `prod` if applicable)
 - [ ] IAM cleanup requested from infra team
-- [ ] SSH deploy key secret deleted
 - [ ] Cloud Run services deleted (DEV + PRD)
 - [ ] Container images deleted (DEV + PRD AR)
 - [ ] BigQuery datasets deleted (if applicable)

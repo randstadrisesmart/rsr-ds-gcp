@@ -12,12 +12,14 @@ Your service repo should look like this before pushing:
 
 ```
 rsr-ds-{service}/
+├── .github/
+│   └── CODEOWNERS            # restricts who can approve PRs
 ├── deploy/
-│   ├── dev-build.yaml       # CI/CD pipeline for dev
-│   └── prod-build.yaml      # CI/CD pipeline for prod
+│   ├── dev-build.yaml        # CI/CD pipeline for dev
+│   └── prod-build.yaml       # CI/CD pipeline for prod
 ├── tests/
 │   └── test_*.py             # pytest discovers these automatically
-├── archive/                  # (optional) dev-only files, not deployed
+├── archive/                  # anything not needed for deployment
 ├── Dockerfile                # builds the deployable image
 ├── .dockerignore
 ├── .gitignore
@@ -34,10 +36,8 @@ rsr-ds-{service}/
 - App must be **stateless** — no local disk state between requests
 - Use `ENV` env var (`dev` or `prd`) for environment-specific config — injected
   at deploy time by Cloud Build
-- Use **IAM authentication** for backend APIs (`--no-allow-unauthenticated`)
-  or **IAP** for user-facing UIs
-- Store secrets in **OPS Secret Manager** — do not hardcode credentials or pass
-  them as env vars
+- External credentials, API keys, or secrets must be stored in **OPS Secret
+  Manager** or passed at build time as env vars — no hardcoded strings
 
 ### Build yamls
 
@@ -68,6 +68,7 @@ pytest-cov
 __pycache__/
 *.pyc
 .pytest_cache/
+.ruff_cache/
 .env
 ```
 
@@ -81,10 +82,22 @@ Add any service-specific entries (e.g. `*.gguf`, `models/`).
 .dockerignore
 __pycache__
 *.pyc
+.pytest_cache/
+.ruff_cache/
 .env
 tests/
 deploy/
 archive/
+```
+
+### Pre-flight: lint and test locally
+
+CI will reject your first push if lint or tests fail. Save yourself a round-trip:
+
+```bash
+pip install ruff pytest pytest-cov
+ruff check . --exclude archive/   # fix any issues before pushing
+pytest tests/
 ```
 
 ---
@@ -114,7 +127,8 @@ git add .
 git commit -m "Initial commit: {service} service"
 
 # Rename the default branch from 'master' to 'main'
-# (our CI/CD triggers fire on push to 'main', not 'master')
+# (our CI/CD triggers fire on push to 'main', not 'master'
+# as a pre 2020 convention)
 git branch -M main
 
 # Connect your local repo to the GitHub repo you just created
@@ -132,6 +146,15 @@ After this, refresh the GitHub page — you should see your code.
 
 ## 4. Configure Repo Settings
 
+### CODEOWNERS
+
+Create `.github/CODEOWNERS` in your repo:
+
+```
+# Only these people can approve PRs
+* @res-wayne-kenney @res-giuliano-giuliani @res-fabrizio-giuliani
+```
+
 ### Branch protection
 
 Go to **Settings → Branches → Add classic branch protection rule** on the GitHub repo:
@@ -139,9 +162,10 @@ Go to **Settings → Branches → Add classic branch protection rule** on the Gi
 - **Branch name pattern:** `main`
 - **Require a pull request before merging:** Yes
   - **Require approvals:** 1 (or your team's preference)
+  - **Require review from Code Owners:** Yes
 - **Require status checks to pass before merging:** Yes
   - Leave the status check search empty for now — we'll come back and add
-    the `{service}-pr` check after Step 7 (Add Status Check).
+    the `{service}-pr` check after Step 6 (Add Status Check).
 
 ### Merge strategy
 
@@ -153,50 +177,7 @@ Go to **Settings → General → Pull Requests** on the GitHub repo:
 
 ---
 
-## 5. Generate SSH Deploy Key
-
-Cloud Build needs read access to your repo. This is done via an SSH deploy key.
-
-```bash
-# Generate a 4096-bit RSA key pair
-ssh-keygen -t rsa -b 4096 -f ssh-deploy-key-{service}
-# Press Enter twice (no passphrase)
-```
-
-This creates two files:
-- `ssh-deploy-key-{service}` — the private key (goes to Secret Manager)
-- `ssh-deploy-key-{service}.pub` — the public key (goes to GitHub)
-
-### Add public key to GitHub
-
-Go to your repo → **Settings → Deploy keys → Add deploy key**
-- **Title:** `cloud-build`
-- **Key:** paste the contents of `ssh-deploy-key-{service}.pub`
-- **Allow write access:** No (read-only)
-
-### Store private key in OPS Secret Manager
-
-Coordinate with the DataOps team — they manage the OPS project.
-
-```bash
-# Create the secret
-gcloud secrets create ssh-deploy-key-{service} \
-  --project=rsr-ds-group-ops-d0b0
-
-# Upload the private key as the first version
-gcloud secrets versions add ssh-deploy-key-{service} \
-  --data-file=ssh-deploy-key-{service} \
-  --project=rsr-ds-group-ops-d0b0
-```
-
-Delete the local key files after uploading:
-```bash
-rm ssh-deploy-key-{service} ssh-deploy-key-{service}.pub
-```
-
----
-
-## 6. Create Build Service Account (Terraform)
+## 5. Create Build Service Account (Terraform)
 
 If you don't have the infrastructure repo locally yet, clone it first:
 
@@ -258,9 +239,12 @@ entries to `sync_tables`:
 
 If your service has no BQ tables, use `sync_tables = []`.
 
-Commit, push, and create a PR:
+Commit, push, and create a PR **in the rsr-ds-gcp repo** (not your service repo):
 
 ```bash
+# Make sure you're in the infrastructure repo, not your service repo!
+cd /path/to/rsr-ds-gcp
+
 # Create a branch for your change
 git checkout -b feature-onboard-{service}
 
@@ -299,13 +283,12 @@ git push origin ops
 
 This creates:
 - Build SA: `svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
-- Deploy key secret accessor grant
 - PubSub publisher grant
 - Cloud Build triggers (dev + prod)
 
 ---
 
-## 7. Add Status Check to Branch Protection
+## 6. Add Status Check to Branch Protection
 
 Now that the triggers exist, add the PR check to branch protection so PRs
 can't be merged without passing tests.
@@ -322,7 +305,7 @@ From now on, PRs to `main` must pass the Cloud Build check before merging.
 
 ---
 
-## 8. Request IAM Bindings from Infra Team
+## 7. Request IAM Bindings from Infra Team
 
 The build SA needs cross-project permissions that are managed by the infra team
 (not Terraform). Copy `templates/iam_request_template.csv`, replace `{service}`
@@ -354,7 +337,7 @@ Service account: `svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.
 
 ---
 
-## 9. Connect Repo to Cloud Build
+## 8. Connect Repo to Cloud Build
 
 Before triggers can reference your repo, it must be connected to the Cloud Build
 GitHub App in the OPS project.
@@ -370,7 +353,7 @@ GitHub App in the OPS project.
 
 ---
 
-## 10. Initial Deploy
+## 9. Initial Deploy
 
 ### Initial Dev Deploy
 
@@ -412,6 +395,6 @@ working correctly in production.
 
 ---
 
-## 11. Celebrate
+## 10. Celebrate
 
 You're done. Your service is live in production with a full CI/CD pipeline.

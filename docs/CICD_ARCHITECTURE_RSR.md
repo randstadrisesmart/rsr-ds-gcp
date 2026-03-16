@@ -26,7 +26,7 @@
 ## Reference Documentation
 
 This document follows the Randstad standard CI/CD patterns documented in `./documentation/`:
-- **CD Templates Usage.docx** — GitHub template repos, per-service build SAs, SSH deploy keys
+- **CD Templates Usage.docx** — GitHub template repos, per-service build SAs
 - **Release Management - Configs.pptx** — Branch/tag naming, squash-and-merge, tag-driven prod releases
 - **SCOPE+CICD+-+WIP.doc** — Cloud Build triggers, PubSub-driven promotion, image copy dev→prod
 
@@ -110,12 +110,15 @@ GitHub Organization: randstadrisesmart/
 
 For each new repo:
 1. Create from a GitHub template repo (see `randstadrisesmart` template repos)
-2. Generate 4096-bit SSH key pair for deploy key
-3. Store private key in OPS Secret Manager as `ssh-deploy-key-{service-name}`
-4. Configure deploy key on the GitHub repo (read-only)
-5. Share repo with required groups + data engineering bot account
-6. Configure branch protection rules (per `res-repo-common-repo-rules`)
-7. Create Cloud Build triggers in OPS project (dev + prod)
+2. Connect repo to Cloud Build via the GitHub App (OPS project)
+3. Share repo with required groups + data engineering bot account
+4. Configure branch protection rules (per `res-repo-common-repo-rules`)
+5. Create Cloud Build triggers in OPS project (dev + prod)
+
+> **Note:** The original Randstad pattern used per-repo SSH deploy keys stored
+> in Secret Manager. We use the Cloud Build GitHub App connection instead —
+> it uses short-lived tokens rather than long-lived SSH keys, which is more
+> secure and eliminates key rotation overhead.
 
 ### Naming Conventions (per Release Management)
 
@@ -149,7 +152,7 @@ For each new repo:
 │  │  Config: deploy/dev-build.yaml                                      │     │
 │  │                                                                     │     │
 │  │  Steps:                                                             │     │
-│  │    1. Clone repo (SSH deploy key from Secret Manager)               │     │
+│  │    1. Clone repo (via Cloud Build GitHub App)                       │     │
 │  │    2. Run tests (pytest)                                            │     │
 │  │    3. Build Docker image                                            │     │
 │  │    4. Push to DEV Artifact Registry                                 │     │
@@ -498,14 +501,6 @@ resource "google_project_iam_member" "sa_user_prd" {
   member  = "serviceAccount:${google_service_account.build.email}"
 }
 
-# Read SSH deploy key from OPS Secret Manager
-resource "google_secret_manager_secret_iam_member" "deploy_key" {
-  project   = var.project_ops
-  secret_id = "ssh-deploy-key-${var.service_name}"
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.build.email}"
-}
-
 output "build_sa_email" {
   value = google_service_account.build.email
 }
@@ -724,16 +719,6 @@ Each build SA follows the same pattern. All are created in the OPS project.
 | PRD | `roles/artifactregistry.writer` | Copy images to prod AR |
 | PRD | `roles/run.admin` | Deploy to prod Cloud Run |
 | PRD | `roles/iam.serviceAccountUser` | Set runtime SA on deploy |
-| OPS | `roles/secretmanager.secretAccessor` | Read SSH deploy key |
-
-### SSH Deploy Keys
-
-| Secret ID (in OPS) | GitHub Repo |
-|---------------------|-------------|
-| `ssh-deploy-key-digitaltwin` | `rsr-ds-digitaltwin` |
-| `ssh-deploy-key-taxonomy` | `rsr-ds-taxonomy` |
-| ... (one per repo) | ... |
-
 ### Runtime SA Permissions
 
 Runtime SAs are shared per environment:
@@ -853,7 +838,7 @@ resource "google_project_iam_member" "sync_write_prd" {
 | Runtime SA roles (per env) | 6 (run.invoker + bq.dataEditor + bq.jobUser + secretAccessor × 2 + cross-project write) |
 | OPS sync SA roles | 3 (jobUser on OPS + dataViewer on DEV + dataOwner on PRD) |
 | Cloud Run agent grants | 0 (AR is per-project, no cross-project read needed) |
-| SSH deploy keys | 13 secrets in OPS Secret Manager |
+| Repo access | Cloud Build GitHub App (short-lived tokens) |
 | PubSub | 1 topic + subscriptions in OPS |
 | Total IAM bindings | ~119 (build SA × 8 + runtime × 6 × 2 + sync × 3) |
 
@@ -1078,9 +1063,7 @@ rsr-ds-group-ops-d0b0/
 │   ├── brandwatch-api-key           # Shared runtime secrets
 │   ├── thinknum-api-key
 │   ├── elasticsearch-password
-│   ├── ssh-deploy-key-rascoeditorllm  # Per-repo SSH deploy keys
-│   ├── ssh-deploy-key-taxonomy
-│   └── ... (13 deploy keys + shared secrets)
+│   └── hf-token                     # HuggingFace auth for model downloads
 │
 ├── Cloud Logging
 │   └── Log sinks from all projects
@@ -1133,14 +1116,6 @@ resource "google_secret_manager_secret" "brandwatch_api_key" {
 resource "google_secret_manager_secret" "thinknum_api_key" {
   project   = "rsr-ds-group-ops-d0b0"
   secret_id = "thinknum-api-key"
-  replication { auto {} }
-}
-
-# SSH deploy keys (one per service repo)
-resource "google_secret_manager_secret" "deploy_keys" {
-  for_each  = local.services
-  project   = "rsr-ds-group-ops-d0b0"
-  secret_id = "ssh-deploy-key-${each.key}"
   replication { auto {} }
 }
 
@@ -1256,7 +1231,7 @@ module "rascoeditorllm" {
 
 - [ ] **Migrate `taxonomy` service first** (simpler, medium traffic)
   - [ ] Create GitHub repo `rsr-ds-taxonomy` from template
-  - [ ] Generate SSH deploy key, store in OPS Secret Manager
+  - [ ] Connect repo to Cloud Build GitHub App in OPS
   - [ ] Create per-service build SA `svc-build-taxonomy@ops`
   - [ ] Grant build SA all required roles (8 roles)
   - [ ] Create Cloud Build triggers (dev + prod) in OPS
@@ -1317,7 +1292,7 @@ module "rascoeditorllm" {
 └─────────────────────────────────────────────────────────────────────────────────────┘
                                           │
                                           │ Cloud Build triggers
-                                          │ (SSH deploy keys for auth)
+                                          │ (GitHub App connection)
                                           ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                         rsr-ds-group-ops-d0b0 (Operations)                           │
@@ -1325,7 +1300,7 @@ module "rascoeditorllm" {
 │   ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐                   │
 │   │ Cloud Build      │  │ Secret Manager   │  │ PubSub           │                   │
 │   │ (26 triggers)    │  │ (shared secrets  │  │ (build status    │                   │
-│   │ (13 build SAs)   │  │  + deploy keys)  │  │  dev→prod)       │                   │
+│   │ (13 build SAs)   │  │ (shared secrets)  │  │  dev→prod)       │                   │
 │   └──────────────────┘  └──────────────────┘  └──────────────────┘                   │
 │                                                                                       │
 │   ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐                   │
