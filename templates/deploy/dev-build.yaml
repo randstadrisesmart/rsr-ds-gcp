@@ -76,7 +76,7 @@ steps:
       - '--memory=${_MEMORY}'
       - '--cpu=${_CPU}'
       - '--timeout=${_TIMEOUT}'
-      - '--startup-cpu-boost'
+      - '--cpu-boost'
     waitFor: ['push']
 
   # ─── NOTIFY SUCCESS (PubSub) ───────────────────────────
