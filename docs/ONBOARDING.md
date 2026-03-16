@@ -46,8 +46,15 @@ Copy the templates from this repo into your service at `deploy/`:
 - **Standard service (no GPU):** copy from `templates/deploy/`
 - **GPU service (nvidia-l4):** copy from `templates/deploy-gpu/`
 
-Open each file and change `_SERVICE_NAME` from `CHANGE_ME` to your service name.
-If your service uses a non-default region, also change `_REGION`.
+Open each file and review the substitutions at the top:
+
+| Substitution | Default | When to change |
+|-------------|---------|----------------|
+| `_SERVICE_NAME` | `CHANGE_ME` | **Always** — set to your service name |
+| `_REGION` | `us-east1` | If co-locating with a dependency (e.g. `europe-west1`) |
+| `_MEMORY` | `512Mi` | If loading heavy models at startup (e.g. `32Gi`) |
+| `_CPU` | `1` | If loading heavy models at startup (e.g. `4`) |
+| `_TIMEOUT` | `300` | If startup takes more than 5 min (e.g. `1800` = 30 min) |
 
 ### requirements.txt
 
@@ -196,7 +203,7 @@ locals {
     {service} = {
       repo          = "rsr-ds-{service}"
       build_group   = "ollama"              # see Build Groups below
-      build_secrets = ["hf-token"]          # optional — OPS secrets needed at build time
+      build_secrets = ["name"]              # see Build Secrets below
       sync_tables   = []
     }
   }
@@ -324,29 +331,7 @@ The build SA needs cross-project permissions that are managed by the infra team
 (not Terraform). Copy `templates/iam_request_template.csv`, replace `{service}`
 with your build group name, and submit it as a
 [GCP Requests](https://randstadglobal.service-now.com/motion?id=sc_cat_item&sys_id=c1b08a2587285510691d62480cbb3584&referrer=popular_items)
-ticket in ServiceNow. The 8 bindings are:
-
-**DEV (`rsr-ds-group-dev-f193`):**
-| Role | Purpose |
-|------|---------|
-| `roles/artifactregistry.writer` | Push images to dev AR |
-| `roles/artifactregistry.reader` | Read images from dev AR (for prod copy) |
-| `roles/run.admin` | Deploy to dev Cloud Run |
-| `roles/iam.serviceAccountUser` | Set runtime SA on deploy |
-
-**PRD (`rsr-ds-group-prd-83ad`):**
-| Role | Purpose |
-|------|---------|
-| `roles/artifactregistry.writer` | Copy images to prod AR |
-| `roles/run.admin` | Deploy to prod Cloud Run |
-| `roles/iam.serviceAccountUser` | Set runtime SA on deploy |
-
-**OPS (`rsr-ds-group-ops-d0b0`):**
-| Role | Purpose |
-|------|---------|
-| `roles/logging.logWriter` | Write build logs |
-
-Service account: `svc-build-{build_group}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
+ticket in ServiceNow. 
 
 ---
 

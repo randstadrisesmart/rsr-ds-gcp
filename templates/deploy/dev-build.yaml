@@ -4,11 +4,14 @@
 # SA: svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com
 #
 # Copy this file to your service repo at deploy/dev-build.yaml
-# and change _SERVICE_NAME to your service name.
+# and review the substitutions below for your service.
 
 substitutions:
-  _SERVICE_NAME: CHANGE_ME             # e.g. taxonomy, langapi, digitaltwin
-  _REGION: us-east1
+  _SERVICE_NAME: CHANGE_ME             # e.g. taxonomy, cleanpii, digitaltwin
+  _REGION: us-east1                    # change if co-locating with a dependency
+  _MEMORY: 512Mi                       # increase for heavy model loading (e.g. 8Gi)
+  _CPU: '1'                            # increase for heavy model loading (e.g. 4)
+  _TIMEOUT: '300'                      # seconds — increase for slow startup (e.g. 1800)
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
 
@@ -68,6 +71,10 @@ steps:
       - '--service-account=svc-ai-platform@${_PROJECT_DEV}.iam.gserviceaccount.com'
       - '--set-env-vars=ENV=${_ENV},BQ_PROJECT=${_PROJECT_DEV},GOOGLE_CLOUD_PROJECT=${_PROJECT_DEV}'
       - '--no-allow-unauthenticated'
+      - '--memory=${_MEMORY}'
+      - '--cpu=${_CPU}'
+      - '--timeout=${_TIMEOUT}'
+      - '--startup-cpu-boost'
     waitFor: ['push']
 
   # ─── NOTIFY SUCCESS (PubSub) ───────────────────────────
