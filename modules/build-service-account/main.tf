@@ -1,8 +1,9 @@
-# Per-service Cloud Build service account
+# Per-group Cloud Build service account
 #
-# Creates one SA per service in OPS. The 8 cross-project IAM bindings
-# (4 DEV + 3 PRD + 1 OPS) are provisioned by the infra team per request
-# (option 2 from request.txt).
+# Creates one SA per build group in OPS (e.g. svc-build-ollama, svc-build-talent).
+# Multiple services share the same SA within a group.
+# The 8 cross-project IAM bindings (4 DEV + 3 PRD + 1 OPS) are provisioned
+# by the infra team once per group.
 
 variable "service_name" {}
 variable "project_ops" {
@@ -16,14 +17,6 @@ resource "google_service_account" "build" {
   project      = var.project_ops
   account_id   = "svc-build-${var.service_name}"
   display_name = "Cloud Build SA for ${var.service_name}"
-}
-
-# Read SSH deploy key from OPS Secret Manager
-resource "google_secret_manager_secret_iam_member" "deploy_key" {
-  project   = var.project_ops
-  secret_id = "ssh-deploy-key-${var.service_name}"
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.build.email}"
 }
 
 # Publish build status notifications to OPS PubSub topic

@@ -36,7 +36,7 @@ steps:
       - '-c'
       - |
         pip install ruff
-        ruff check server.py
+        ruff check . --exclude archive/
 
   # ─── BUILD ──────────────────────────────────────────────
   - id: 'build'

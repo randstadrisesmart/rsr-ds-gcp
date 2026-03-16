@@ -1,4 +1,4 @@
-# Per-service Cloud Build triggers + build SAs
+# Per-group build SAs + per-service Cloud Build triggers
 
 locals {
   # Flatten all sync_tables across services into a single list.
@@ -18,20 +18,20 @@ locals {
   ])
 }
 
-# Create per-service build SAs
+# Create one build SA per group (not per service)
 module "build_sa" {
-  for_each           = local.services
+  for_each           = local.build_groups
   source             = "../../modules/build-service-account"
   service_name       = each.key
   build_status_topic = google_pubsub_topic.build_status.name
 }
 
-# Create per-service Cloud Build triggers
+# Create per-service Cloud Build triggers (using the group's SA)
 module "cloud_build_trigger" {
   for_each     = local.services
   source       = "../../modules/cloud-build-trigger"
   service_name = each.key
   github_repo  = each.value.repo
-  build_sa     = module.build_sa[each.key].build_sa_email
+  build_sa     = module.build_sa[each.value.build_group].build_sa_email
   region       = lookup(each.value, "region", "us-east1")
 }

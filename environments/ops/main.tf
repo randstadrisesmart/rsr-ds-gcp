@@ -88,17 +88,6 @@ resource "google_service_account" "data_sync" {
   display_name = "AI Platform Ops SA (BQ data sync scheduled queries)"
 }
 
-# ── SSH deploy keys (one per service repo) ──────────────────
-
-resource "google_secret_manager_secret" "deploy_keys" {
-  for_each  = local.services
-  project   = "rsr-ds-group-ops-d0b0"
-  secret_id = "ssh-deploy-key-${each.key}"
-  replication {
-    auto {}
-  }
-}
-
 # ── Build failure alert ─────────────────────────────────────
 
 resource "google_monitoring_alert_policy" "build_failures" {

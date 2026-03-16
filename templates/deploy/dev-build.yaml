@@ -31,7 +31,7 @@ steps:
       - '-c'
       - |
         pip install ruff
-        ruff check src/
+        ruff check . --exclude archive/
 
   # ─── BUILD ──────────────────────────────────────────────
   - id: 'build'
