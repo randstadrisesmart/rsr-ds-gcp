@@ -8,11 +8,13 @@
 # and review the substitutions below for your service.
 
 substitutions:
+  # ── Review these — must match dev-build.yaml ──
   _SERVICE_NAME: CHANGE_ME             # e.g. taxonomy, cleanpii, digitaltwin
-  _REGION: us-east1                    # must match dev-build.yaml
-  _MEMORY: 512Mi                       # must match dev-build.yaml
-  _CPU: '1'                            # must match dev-build.yaml
-  _TIMEOUT: '300'                      # must match dev-build.yaml
+  _REGION: us-east1
+  _MEMORY: 512Mi
+  _CPU: '1'
+  _TIMEOUT: '300'
+  # ── Do not change ──
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _PROJECT_PRD: rsr-ds-group-prd-83ad
   _ENV: prd

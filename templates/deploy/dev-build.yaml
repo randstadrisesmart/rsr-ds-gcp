@@ -7,11 +7,13 @@
 # and review the substitutions below for your service.
 
 substitutions:
+  # ── Review these for your service ──
   _SERVICE_NAME: CHANGE_ME             # e.g. taxonomy, cleanpii, digitaltwin
   _REGION: us-east1                    # change if co-locating with a dependency
-  _MEMORY: 512Mi                       # increase for heavy model loading (e.g. 8Gi)
+  _MEMORY: 512Mi                       # increase for heavy model loading (e.g. 32Gi)
   _CPU: '1'                            # increase for heavy model loading (e.g. 4)
   _TIMEOUT: '300'                      # seconds — increase for slow startup (e.g. 1800)
+  # ── Do not change ──
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
 
