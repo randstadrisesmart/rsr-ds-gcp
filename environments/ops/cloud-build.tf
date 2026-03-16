@@ -26,6 +26,15 @@ module "build_sa" {
   build_status_topic = google_pubsub_topic.build_status.name
 }
 
+# Grant build SAs access to build-time secrets (e.g. hf-token)
+resource "google_secret_manager_secret_iam_member" "build_secrets" {
+  for_each  = local.build_secret_grants
+  project   = "rsr-ds-group-ops-d0b0"
+  secret_id = each.value.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.build_sa[each.value.build_group].build_sa_email}"
+}
+
 # Create per-service Cloud Build triggers (using the group's SA)
 module "cloud_build_trigger" {
   for_each     = local.services
