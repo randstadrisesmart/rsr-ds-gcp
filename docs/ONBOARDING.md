@@ -165,7 +165,7 @@ Go to **Settings → Branches → Add classic branch protection rule** on the Gi
   - **Require review from Code Owners:** Yes
 - **Require status checks to pass before merging:** Yes
   - Leave the status check search empty for now — we'll come back and add
-    the `{service}-pr` check after Step 6 (Add Status Check).
+    the `{service}-pr` check after Step 9 (Add Status Check).
 
 ### Merge strategy
 
@@ -194,32 +194,58 @@ locals {
   services = {
     # ... existing services ...
     {service} = {
-      repo        = "rsr-ds-{service}"
-      sync_tables = []
+      repo          = "rsr-ds-{service}"
+      build_group   = "ollama"              # see Build Groups below
+      build_secrets = ["hf-token"]          # optional — OPS secrets needed at build time
+      sync_tables   = []
     }
   }
 }
 ```
 
-If your service needs a **non-default region** (e.g. GPU services need `us-central1`),
-add a `region` field:
+### Build groups
+
+Services share a build SA by group. All services in the same group use
+`svc-build-{group}@ops`. IAM bindings are requested once per group — if the
+group already exists, no new IAM request is needed (skip Step 6).
+
+| Group | Purpose | Services |
+|-------|---------|----------|
+| `ollama` | LLM backed services | ollama, cleanpii, rascoeditorllm |
+| `talent` | Talent Radar | taxonomy, digitaltwin |
+| `analysis` | Other analysis | sociallistening, qamonitoring, mrapipeline, etc. |
+
+Pick the group that fits your service. If none fits, create a new group name —
+Terraform will create the SA automatically, and you'll need to request IAM
+bindings for it (Step 6).
+
+### Optional fields
+
+**`region`** — Cloud Run / AR region. Defaults to `us-east1`. Set this if your
+service needs a specific region (e.g. co-locate with a dependency, or GPU
+availability):
 
 ```hcl
 {service} = {
   repo        = "rsr-ds-{service}"
-  region      = "us-central1"       # GPU (nvidia-l4) availability
+  build_group = "ollama"
+  region      = "europe-west1"       # co-locate with ollama
   sync_tables = []
 }
 ```
 
-If omitted, region defaults to `us-east1`.
+**`build_secrets`** — list of OPS Secret Manager secret IDs the build SA needs
+access to at build time (e.g. `hf-token` for HuggingFace downloads). Terraform
+grants `secretmanager.secretAccessor` on each secret to the group's build SA.
+Omit if your build doesn't need any secrets.
 
-If your service has BigQuery tables that need to sync from DEV to PRD, add
-entries to `sync_tables`:
+**`sync_tables`** — BigQuery tables to sync from DEV to PRD. Use
+`sync_tables = []` if your service has no BQ tables.
 
 ```hcl
 {service} = {
   repo        = "rsr-ds-{service}"
+  build_group = "analysis"
   sync_tables = [
     { dataset_name = "my_dataset", table_name = "my_table", sync_frequency = "daily", region = "us-east1" },
   ]
@@ -236,8 +262,6 @@ entries to `sync_tables`:
 | | `monthly` — clone on the 1st of the month (or if table doesn't exist) |
 | `region` | BQ location: `US`, `EU`, `us-east1`, `europe-west1`, `australia-southeast1` |
 | `enabled` | (optional, default `true`) set to `false` to pause sync |
-
-If your service has no BQ tables, use `sync_tables = []`.
 
 Commit, push, and create a PR **in the rsr-ds-gcp repo** (not your service repo):
 
@@ -281,35 +305,24 @@ git merge origin/dev
 git push origin ops
 ```
 
-This creates:
-- Build SA: `svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
-- PubSub publisher grant
-- Cloud Build triggers (dev + prod)
+If the build SA didn't already exist, Terraform creates:
+- Build SA: `svc-build-{build_group}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
+- PubSub publisher grant for the build SA
+- The new SA needs IAM bindings from the infra team — see Step 6
+
+Terraform always creates:
+- Cloud Build triggers (dev + prod) for this service
 
 ---
 
-## 6. Add Status Check to Branch Protection
+## 6. Request IAM Bindings from Infra Team
 
-Now that the triggers exist, add the PR check to branch protection so PRs
-can't be merged without passing tests.
-
-1. Open a test PR (or wait until Step 10 when you test the pipeline)
-   — the `{service}-pr` trigger needs to run at least once before GitHub
-   knows about it
-2. Go to **Settings → Branches → Edit** the `main` protection rule
-3. Under **"Require status checks to pass before merging"**, search for
-   `{service}-pr` and select it
-4. Save changes
-
-From now on, PRs to `main` must pass the Cloud Build check before merging.
-
----
-
-## 7. Request IAM Bindings from Infra Team
+> **Skip this step** if your service's `build_group` SA already has IAM bindings
+> (i.e. another service in the same group was onboarded before).
 
 The build SA needs cross-project permissions that are managed by the infra team
 (not Terraform). Copy `templates/iam_request_template.csv`, replace `{service}`
-with your service name, and submit it as a
+with your build group name, and submit it as a
 [GCP Requests](https://randstadglobal.service-now.com/motion?id=sc_cat_item&sys_id=c1b08a2587285510691d62480cbb3584&referrer=popular_items)
 ticket in ServiceNow. The 8 bindings are:
 
@@ -333,11 +346,11 @@ ticket in ServiceNow. The 8 bindings are:
 |------|---------|
 | `roles/logging.logWriter` | Write build logs |
 
-Service account: `svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
+Service account: `svc-build-{build_group}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
 
 ---
 
-## 8. Connect Repo to Cloud Build
+## 7. Connect Repo to Cloud Build
 
 Before triggers can reference your repo, it must be connected to the Cloud Build
 GitHub App in the OPS project.
@@ -349,11 +362,12 @@ GitHub App in the OPS project.
 4. **Source:** GitHub (Cloud Build GitHub App)
 5. Under **Repository**, if your repo doesn't appear, click **"Edit Repositories on GitHub"**
 6. Select your repo (`rsr-ds-{service}`) and click **"Update Access"**
-7. Back in Cloud Build, select the repo and confirm the connection
+7. Back in Connect repositoy, select the repo and confirm the connection
+8. Click **Done**
 
 ---
 
-## 9. Initial Deploy
+## 8. Initial Deploy
 
 ### Initial Dev Deploy
 
@@ -392,6 +406,20 @@ build → deploys to PRD.
 
 Perform smoke tests against the PRD deployment to confirm everything is
 working correctly in production.
+
+---
+
+## 9. Add Status Check to Branch Protection
+
+Now that the first build has run, add the PR check to branch protection
+in your **service repo** (`rsr-ds-{service}`) on GitHub:
+
+1. Go to **Settings → Branches → Edit** the `main` protection rule
+2. Under **"Require status checks to pass before merging"**, search for
+   `{service}-pr` and select it
+3. Save changes
+
+From now on, PRs to `main` must pass the Cloud Build check before merging.
 
 ---
 
