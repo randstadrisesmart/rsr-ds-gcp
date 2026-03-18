@@ -15,6 +15,7 @@ rsr-ds-{service}/
 ├── .github/
 │   └── CODEOWNERS            # restricts who can approve PRs
 ├── deploy/
+│   ├── pr-build.yaml         # PR status check (test + lint only)
 │   ├── dev-build.yaml        # CI/CD pipeline for dev
 │   └── prod-build.yaml       # CI/CD pipeline for prod
 ├── tests/
