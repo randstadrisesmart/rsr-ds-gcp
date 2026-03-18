@@ -55,6 +55,23 @@ locals {
       region      = "europe-west1"       # GPU (nvidia-l4) availability
       sync_tables = []
     }
+    job-title-matcher = {
+      repo        = "rsr-ds-job-title-matcher"
+      build_group = "ollama"
+      region      = "europe-west1"       # co-located with rascoeditorllm
+      sync_tables = []
+    }
+    rasco-taxonomy-editor = {
+      repo        = "rsr-ds-rasco-taxonomy-editor"
+      build_group = "ollama"
+      sync_tables = [
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "rasco_taxonomy", sync_frequency = "daily", region = "us-east1" },
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "job_title_input", sync_frequency = "daily", region = "us-east1" },
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "job_title_results", sync_frequency = "daily", region = "us-east1" },
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "processing_jobs", sync_frequency = "daily", region = "us-east1" },
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "rasco_fixer_output_integration", sync_frequency = "daily", region = "us-east1" },
+      ]
+    }
   }
 
   # Unique build groups — one SA per group
