@@ -66,6 +66,10 @@ locals {
       build_group = "ollama"
       sync_tables = [
         { dataset_name = "rasco_taxonomy_fixes_US", table_name = "rasco_taxonomy", sync_frequency = "daily", region = "us-east1" },
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "job_title_input", sync_frequency = "once", region = "us-east1" },
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "job_title_results", sync_frequency = "once", region = "us-east1" },
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "processing_jobs", sync_frequency = "once", region = "us-east1" },
+        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "rasco_fixer_output_integration", sync_frequency = "once", region = "us-east1" },
       ]
     }
   }
