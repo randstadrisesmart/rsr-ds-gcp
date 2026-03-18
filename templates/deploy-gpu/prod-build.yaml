@@ -60,5 +60,22 @@ steps:
       - '--no-cpu-throttling'
     waitFor: ['copy-image']
 
+  # ─── ENABLE IAP (frontend services only) ───────────────
+  - id: 'enable-iap'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "${_IAP}" = "true" ]; then
+          gcloud run services update ${_SERVICE_NAME} \
+            --region=${_REGION} \
+            --project=${_PROJECT_PRD} \
+            --iap
+        else
+          echo "IAP not enabled for this service, skipping."
+        fi
+    waitFor: ['deploy-prd']
+
 options:
   logging: CLOUD_LOGGING_ONLY

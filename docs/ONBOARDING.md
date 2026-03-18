@@ -190,6 +190,7 @@ locals {
       repo          = "rsr-ds-{service}"
       build_group   = "ollama"              # see Build Groups below
       build_secrets = ["name"]              # see Build Secrets below
+      iap           = true                  # see IAP below (frontend services only)
       sync_tables   = []
     }
   }
@@ -223,9 +224,15 @@ availability):
   repo        = "rsr-ds-{service}"
   build_group = "ollama"
   region      = "europe-west1"       # co-locate with ollama
+  iap         = true                 # frontend services only
   sync_tables = []
 }
 ```
+
+**`iap`** — set to `true` for frontend/UI services that users access in a
+browser. The deploy pipeline will automatically enable IAP (Identity-Aware
+Proxy) on the Cloud Run service after each deploy. Omit or set to `false` for
+backend APIs.
 
 **`build_secrets`** — list of OPS Secret Manager secret IDs the build SA needs
 access to at build time (e.g. `hf-token` for HuggingFace downloads). Terraform
@@ -237,8 +244,7 @@ Omit if your build doesn't need any secrets.
 
 ```hcl
 {service} = {
-  repo        = "rsr-ds-{service}"
-  build_group = "analysis"
+  ...
   sync_tables = [
     { dataset_name = "my_dataset", table_name = "my_table", sync_frequency = "daily", region = "us-east1" },
   ]
@@ -310,14 +316,31 @@ Terraform always creates:
 
 ## 6. Request IAM Bindings from Infra Team
 
-> **Skip this step** if your service's `build_group` SA already has IAM bindings
+Submit a single
+[GCP Requests](https://randstadglobal.service-now.com/motion?id=sc_cat_item&sys_id=c1b08a2587285510691d62480cbb3584&referrer=popular_items)
+ticket in ServiceNow with the applicable CSV(s) below.
+
+### Build SA bindings
+
+> **Skip this** if your service's `build_group` SA already has IAM bindings
 > (i.e. another service in the same group was onboarded before).
 
 The build SA needs cross-project permissions that are managed by the infra team
-(not Terraform). Copy `templates/iam_request_template.csv`, replace `{service}`
-with your build group name, and submit it as a
-[GCP Requests](https://randstadglobal.service-now.com/motion?id=sc_cat_item&sys_id=c1b08a2587285510691d62480cbb3584&referrer=popular_items)
-ticket in ServiceNow. 
+(not Terraform). Copy `templates/iam_request_builder.csv` and replace
+`{service}` with your build group name.
+
+### User access bindings
+
+Any Google Group that needs to call your service (via API or browser) needs
+IAM bindings. Copy `templates/iam_request_user.csv` and replace
+`{google-group}` with the group name (e.g.
+`gcp-rsr-ds-group-ops@randstadservices.com`). Submit once per group that
+needs access. The DS Team already has access.
+
+The template grants two roles on both DEV and PRD:
+- `roles/run.invoker` — required for any group calling the Cloud Run service
+- `roles/iap.httpsResourceAccessor` — required for groups accessing a
+  frontend/UI service through IAP (can be omitted for backend-only APIs)
 
 ---
 

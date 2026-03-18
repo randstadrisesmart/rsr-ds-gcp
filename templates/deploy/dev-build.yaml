@@ -79,6 +79,23 @@ steps:
       - '--cpu-boost'
     waitFor: ['push']
 
+  # ─── ENABLE IAP (frontend services only) ───────────────
+  - id: 'enable-iap'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ "${_IAP}" = "true" ]; then
+          gcloud run services update ${_SERVICE_NAME} \
+            --region=${_REGION} \
+            --project=${_PROJECT_DEV} \
+            --iap
+        else
+          echo "IAP not enabled for this service, skipping."
+        fi
+    waitFor: ['deploy-dev']
+
   # ─── NOTIFY SUCCESS (PubSub) ───────────────────────────
   - id: 'notify'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -90,7 +107,7 @@ steps:
       - 'pipelines_build_status'
       - '--project=rsr-ds-group-ops-d0b0'
       - '--message={"service":"${_SERVICE_NAME}","status":"success","commit":"${COMMIT_SHA}","env":"dev"}'
-    waitFor: ['deploy-dev']
+    waitFor: ['enable-iap']
 
 options:
   logging: CLOUD_LOGGING_ONLY

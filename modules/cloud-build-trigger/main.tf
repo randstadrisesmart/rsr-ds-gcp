@@ -15,6 +15,9 @@ variable "region" {
 variable "build_sa" {
   description = "Per-service build SA email"
 }
+variable "iap" {
+  default = false
+}
 
 # PR trigger: fires on pull request to main (test + lint only)
 resource "google_cloudbuild_trigger" "pr" {
@@ -58,6 +61,7 @@ resource "google_cloudbuild_trigger" "dev" {
     _REGION       = var.region
     _PROJECT_DEV  = "rsr-ds-group-dev-f193"
     _ENV          = "dev"
+    _IAP          = tostring(var.iap)
   }
 }
 
@@ -89,5 +93,6 @@ resource "google_cloudbuild_trigger" "prd" {
     _PROJECT_DEV  = "rsr-ds-group-dev-f193"
     _PROJECT_PRD  = "rsr-ds-group-prd-83ad"
     _ENV          = "prd"
+    _IAP          = tostring(var.iap)
   }
 }

@@ -8,6 +8,8 @@
 #                   GPU (nvidia-l4) regions: europe-west1, us-central1, us-east4, etc.
 #   build_secrets — (optional, default []) list of OPS Secret Manager secret IDs
 #                   that the build SA needs access to at build time
+#   iap           — (optional, default false) enable IAP on the Cloud Run service
+#                   for frontend/UI services that users access in a browser
 #   sync_tables   — list of BQ tables to zero-copy clone DEV → PRD nightly
 #                   use sync_tables = [] if the service has no BQ tables
 #
@@ -64,6 +66,7 @@ locals {
     rasco-taxonomy-editor = {
       repo        = "rsr-ds-rasco-taxonomy-editor"
       build_group = "ollama"
+      iap         = true
       sync_tables = [
         { dataset_name = "rasco_taxonomy_fixes_US", table_name = "rasco_taxonomy", sync_frequency = "daily", region = "us-east1" },
         { dataset_name = "rasco_taxonomy_fixes_US", table_name = "job_title_input", sync_frequency = "once", region = "us-east1" },
@@ -73,18 +76,4 @@ locals {
       ]
     }
   }
-
-  # Unique build groups — one SA per group
-  build_groups = toset([for svc in local.services : svc.build_group])
-
-  # Unique (build_group, secret) pairs for build-time secret access
-  build_secret_grants = { for pair in distinct(flatten([
-    for svc_name, svc in local.services : [
-      for secret in lookup(svc, "build_secrets", []) : {
-        key         = "${svc.build_group}--${secret}"
-        build_group = svc.build_group
-        secret_id   = secret
-      }
-    ]
-  ])) : pair.key => pair }
 }

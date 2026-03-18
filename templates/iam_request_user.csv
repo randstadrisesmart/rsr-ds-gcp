@@ -1,0 +1,5 @@
+Project_ID,Identity_Type,Service_Account,Role_Name
+rsr-ds-group-dev-f193,group,{google-group}@randstadservices.com,roles/run.invoker
+rsr-ds-group-prd-83ad,group,{google-group}@randstadservices.com,roles/run.invoker
+rsr-ds-group-dev-f193,group,{google-group}@randstadservices.com,roles/iap.httpsResourceAccessor
+rsr-ds-group-prd-83ad,group,{google-group}@randstadservices.com,roles/iap.httpsResourceAccessor

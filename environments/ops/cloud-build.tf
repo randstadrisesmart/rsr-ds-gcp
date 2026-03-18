@@ -1,6 +1,20 @@
 # Per-group build SAs + per-service Cloud Build triggers
 
 locals {
+  # Unique build groups — one SA per group
+  build_groups = toset([for svc in local.services : svc.build_group])
+
+  # Unique (build_group, secret) pairs for build-time secret access
+  build_secret_grants = { for pair in distinct(flatten([
+    for svc_name, svc in local.services : [
+      for secret in lookup(svc, "build_secrets", []) : {
+        key         = "${svc.build_group}--${secret}"
+        build_group = svc.build_group
+        secret_id   = secret
+      }
+    ]
+  ])) : pair.key => pair }
+
   # Flatten all sync_tables across services into a single list.
   # Each entry gets the service name and a hardcoded src_project.
   all_sync_entries = flatten([
@@ -43,4 +57,5 @@ module "cloud_build_trigger" {
   github_repo  = each.value.repo
   build_sa     = module.build_sa[each.value.build_group].build_sa_email
   region       = lookup(each.value, "region", "us-east1")
+  iap          = lookup(each.value, "iap", false)
 }
