@@ -32,18 +32,7 @@ steps:
         cd environments/$BRANCH_NAME
         terraform init
       else
-        for dir in environments/*/
-        do
-          cd ${dir}
-          env=${dir%*/}
-          env=${env#*/}
-          echo ""
-          echo "*************** TERRAFORM INIT ******************"
-          echo "******* At environment: ${env} ********"
-          echo "*************************************************"
-          terraform init || exit 1
-          cd ../../
-        done
+        echo "Branch '$BRANCH_NAME' does not match an environment. Skipping init."
       fi
 
 - id: 'tf plan'
@@ -56,18 +45,7 @@ steps:
         cd environments/$BRANCH_NAME
         terraform plan
       else
-        for dir in environments/*/
-        do
-          cd ${dir}
-          env=${dir%*/}
-          env=${env#*/}
-          echo ""
-          echo "*************** TERRAFORM PLAN ******************"
-          echo "******* At environment: ${env} ********"
-          echo "*************************************************"
-          terraform plan || exit 1
-          cd ../../
-        done
+        echo "Branch '$BRANCH_NAME' does not match an environment. Skipping plan."
       fi
 
 - id: 'tf apply'
