@@ -372,6 +372,33 @@ The `{service}-dev` trigger fires and deploys to DEV.
 Check the build in Cloud Build console:
 https://console.cloud.google.com/cloud-build/builds?project=rsr-ds-group-ops-d0b0
 
+### Enable IAP (frontend services only)
+
+> **Skip this** if your service is a backend API with no browser-facing UI.
+
+After the DEV deploy completes, configure IAP with the project's custom
+OAuth client so users can access the UI via browser:
+
+1. Go to **Security → Identity-Aware Proxy** in the DEV project:
+   https://console.cloud.google.com/security/iap?project=rsr-ds-group-dev-f193
+2. Find your Cloud Run service in the list
+3. Click the three dots → **Edit OAuth client**
+4. Select **Custom OAuth** and enter the project's OAuth client ID and secret
+   (see the project's **APIs & Services → Credentials** page)
+5. Toggle IAP **on** for the service
+
+The DS Team has a External Auth on DEV and PRD already, but if you deploy in a different project and it doens't have a have an External OAuth client yet, create one first:
+
+1. Go to **Auth → Clients** in the project console
+2. Create a new **Web application** OAuth client
+3. Set the OAuth consent screen to **External** type, **Testing** mode
+4. Add test users (individual emails — groups not supported in Testing mode)
+
+Users must be on the OAuth consent screen's **test users list** to access
+IAP-protected services. All DS team members are already added on DEV and PRD.
+If a new user needs access, add their email under **Auth → Overview → Test users**
+in the project console.
+
 ### Verify DEV
 
 Perform initial smoke tests against the DEV deployment to make sure
@@ -388,6 +415,10 @@ git push origin {service}-v1.0.0
 
 The `{service}-prd` trigger fires. Go to Cloud Build console → approve the
 build → deploys to PRD.
+
+For frontend services, repeat the IAP OAuth configuration on the PRD project
+(same steps as DEV above, using the PRD project's OAuth client):
+https://console.cloud.google.com/security/iap?project=rsr-ds-group-prd-83ad
 
 ### Verify PRD
 
