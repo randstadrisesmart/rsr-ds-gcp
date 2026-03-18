@@ -162,17 +162,16 @@ After this, refresh the GitHub page — you should see your code.
 
 ## 4. Configure Repo Settings
 
-### Branch protection
+### Branch ruleset
 
-Go to **Settings → Branches → Add classic branch protection rule** on the GitHub repo:
+Go to **Settings → Rules → Rulesets → New ruleset → New Branch ruleset**:
 
-- **Branch name pattern:** `main`
+- **Ruleset Name:** `main-protection`
+- **Enforcement status:** Active
+- **Target branches:** Add Target → Include by Pattern → `main` → Add Inclusion pattern
 - **Require a pull request before merging:** Yes
   - **Require approvals:** 1 (or your team's preference)
   - **Require review from Code Owners:** Yes
-- **Require status checks to pass before merging:** Yes
-  - Leave the status check search empty for now — we'll come back and add
-    the `{service}-pr` check after Step 9 (Add Status Check).
 
 ### Merge strategy
 
@@ -394,15 +393,15 @@ working correctly in production.
 
 ---
 
-## 9. Add Status Check to Branch Protection
+## 9. Add Status Check to Branch Ruleset
 
-Now that the first build has run, add the PR check to branch protection
+Now that the first build has run, add the PR check to the branch ruleset
 in your **service repo** (`rsr-ds-{service}`) on GitHub:
 
-1. Go to **Settings → Branches → Edit** the `main` protection rule
-2. Under **"Require status checks to pass before merging"**, search for
-   `{service}-pr` and select it
-3. Save changes
+1. Go to **Settings → Rules → Rulesets → `main-protection`**
+2. Enable **"Require status checks to pass"**
+3. Click **"Add checks"**, search for `{service}-pr` and select it
+4. Save changes
 
 From now on, PRs to `main` must pass the Cloud Build check before merging.
 
