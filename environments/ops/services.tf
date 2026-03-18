@@ -31,5 +31,10 @@ locals {
       region      = "europe-west1"       # GPU (nvidia-l4) availability
       sync_tables = []
     }
+    rascoeditorllm = {
+      repo        = "rsr-ds-rascoeditorllm"
+      region      = "europe-west1"       # GPU (nvidia-l4) availability
+      sync_tables = []
+    }
   }
 }
