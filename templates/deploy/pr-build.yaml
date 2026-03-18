@@ -1,0 +1,30 @@
+# deploy/pr-build.yaml — PR check (test + lint only)
+#
+# Triggered by: pull request to main
+# SA: svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com
+
+steps:
+  # ─── TEST ───────────────────────────────────────────────
+  - id: 'test'
+    name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install -r requirements.txt -r requirements-test.txt
+        pytest tests/ --cov=src --cov-report=term-missing
+    waitFor: ['-']
+
+  # ─── LINT ───────────────────────────────────────────────
+  - id: 'lint'
+    name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install ruff
+        ruff check . --exclude archive/
+    waitFor: ['-']
+
+options:
+  logging: CLOUD_LOGGING_ONLY

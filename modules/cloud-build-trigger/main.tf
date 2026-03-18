@@ -1,6 +1,7 @@
-# Per-service Cloud Build triggers (dev + prod)
+# Per-service Cloud Build triggers (pr + dev + prod)
 #
-# Dev: fires on push to main → build + deploy to DEV
+# PR:   fires on pull request to main → test + lint only
+# Dev:  fires on push to main → build + deploy to DEV
 # Prod: fires on tag matching {service}-v* → manual approval → deploy to PRD
 
 variable "service_name" {}
@@ -13,6 +14,25 @@ variable "region" {
 }
 variable "build_sa" {
   description = "Per-service build SA email"
+}
+
+# PR trigger: fires on pull request to main (test + lint only)
+resource "google_cloudbuild_trigger" "pr" {
+  project  = "rsr-ds-group-ops-d0b0"
+  name     = "${var.service_name}-pr"
+  location = "global"
+
+  github {
+    owner = var.github_owner
+    name  = var.github_repo
+
+    pull_request {
+      branch = "^main$"
+    }
+  }
+
+  filename        = "deploy/pr-build.yaml"
+  service_account = "projects/rsr-ds-group-ops-d0b0/serviceAccounts/${var.build_sa}"
 }
 
 # Dev trigger: fires on push to main
