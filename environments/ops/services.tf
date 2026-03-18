@@ -49,6 +49,12 @@ locals {
       build_secrets = ["hf-token"]       # HuggingFace auth for model downloads
       sync_tables   = []
     }
+    rascoeditorllm = {
+      repo        = "rsr-ds-rascoeditorllm"
+      build_group = "ollama"
+      region      = "europe-west1"       # GPU (nvidia-l4) availability
+      sync_tables = []
+    }
   }
 
   # Unique build groups — one SA per group
