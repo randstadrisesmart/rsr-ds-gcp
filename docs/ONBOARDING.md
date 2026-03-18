@@ -32,12 +32,20 @@ rsr-ds-{service}/
 ### Service requirements
 
 - App must listen on **port 8080**
-- Add a health check endpoint (`/healthcheck` or `/health`)
+- Add a health check endpoint `/health`
 - App must be **stateless** — no local disk state between requests
 - Use `ENV` env var (`dev` or `prd`) for environment-specific config — injected
   at deploy time by Cloud Build
 - External credentials, API keys, or secrets must be stored in **OPS Secret
   Manager** or passed at build time as env vars — no hardcoded strings
+
+### CODEOWNERS
+
+Copy the CODEOWNERS file from this repo into your service:
+
+```bash
+cp -r /path/to/rsr-ds-gcp/templates/.github .github
+```
 
 ### Build yamls
 
@@ -152,15 +160,6 @@ After this, refresh the GitHub page — you should see your code.
 ---
 
 ## 4. Configure Repo Settings
-
-### CODEOWNERS
-
-Create `.github/CODEOWNERS` in your repo:
-
-```
-# Only these people can approve PRs
-* @res-wayne-kenney @res-giuliano-giuliani @res-fabrizio-giuliani
-```
 
 ### Branch protection
 

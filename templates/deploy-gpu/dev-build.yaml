@@ -12,8 +12,8 @@
 # pipeline. Rebuild the base image manually when the model changes.
 
 substitutions:
-  _SERVICE_NAME: CHANGE_ME             # e.g. ollama
-  _REGION: us-central1                 # GPU L4 availability — check region support
+  _SERVICE_NAME: CHANGE_ME              # e.g. ollama
+  _REGION: europe-west1                 # GPU L4 availability — check region support
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
 

@@ -10,7 +10,7 @@
 
 substitutions:
   _SERVICE_NAME: CHANGE_ME             # e.g. ollama
-  _REGION: us-central1                 # GPU L4 availability — check region support
+  _REGION: europe-west1                # GPU L4 availability — check region support
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _PROJECT_PRD: rsr-ds-group-prd-83ad
   _ENV: prd
