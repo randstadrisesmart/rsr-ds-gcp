@@ -133,6 +133,9 @@ Go to https://github.com/organizations/randstadrisesmart/repositories/new
 Open a terminal in your service folder and run these commands:
 
 ```bash
+# Navigate to your service folder
+cd /path/to/rsr-ds-{service}
+
 # Initialize a new git repo in this folder
 git init
 
@@ -160,17 +163,7 @@ After this, refresh the GitHub page — you should see your code.
 
 ---
 
-## 4. Configure Merge Strategy
-
-Go to **Settings → General → Pull Requests** on the GitHub repo:
-
-- Uncheck **"Allow merge commits"**
-- Uncheck **"Allow rebase merging"**
-- Keep **"Allow squash merging"** checked
-
----
-
-## 5. Create Build Service Account (Terraform)
+## 4. Create Build Service Account (Terraform)
 
 If you don't have the infrastructure repo locally yet, clone it first:
 
@@ -201,7 +194,7 @@ locals {
 
 Services share a build SA by group. All services in the same group use
 `svc-build-{group}@ops`. IAM bindings are requested once per group — if the
-group already exists, no new IAM request is needed (skip Step 6).
+group already exists, no new IAM request is needed.
 
 | Group | Purpose | Services |
 |-------|---------|----------|
@@ -211,7 +204,7 @@ group already exists, no new IAM request is needed (skip Step 6).
 
 Pick the group that fits your service. If none fits, create a new group name —
 Terraform will create the SA automatically, and you'll need to request IAM
-bindings for it (Step 6).
+bindings for it (Step 5).
 
 ### Optional fields
 
@@ -307,14 +300,14 @@ git push origin ops
 If the build SA didn't already exist, Terraform creates:
 - Build SA: `svc-build-{build_group}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
 - PubSub publisher grant for the build SA
-- The new SA needs IAM bindings from the infra team — see Step 6
+- The new SA needs IAM bindings from the infra team — see Step 5
 
 Terraform always creates:
 - Cloud Build triggers (dev + prod) for this service
 
 ---
 
-## 6. Request IAM Bindings from Infra Team
+## 5. Request IAM Bindings from Infra Team
 
 Submit a single
 [GCP Requests](https://randstadglobal.service-now.com/motion?id=sc_cat_item&sys_id=c1b08a2587285510691d62480cbb3584&referrer=popular_items)
@@ -344,7 +337,7 @@ The template grants two roles on both DEV and PRD:
 
 ---
 
-## 7. Connect Repo to Cloud Build
+## 6. Connect Repo to Cloud Build
 
 Before triggers can reference your repo, it must be connected to the Cloud Build
 GitHub App in the OPS project.
@@ -361,7 +354,7 @@ GitHub App in the OPS project.
 
 ---
 
-## 8. Initial Deploy
+## 7. Initial Deploy
 
 ### Initial Dev Deploy
 
@@ -403,12 +396,20 @@ working correctly in production.
 
 ---
 
-## 9. Lock Down Branch
+## 8. Configure Repo Settings
 
-Now that the initial deploy is done and the first build has run, lock down
-the `main` branch so all future changes go through PRs.
+Now that the initial deploy is done and the first build has run, configure
+the repo settings to enforce code review and squash merging.
 
-### Create branch ruleset
+### Merge strategy
+
+Go to **Settings → General → Pull Requests** on the GitHub repo:
+
+- Uncheck **"Allow merge commits"**
+- Uncheck **"Allow rebase merging"**
+- Keep **"Allow squash merging"** checked
+
+### Branch ruleset
 
 Go to **Settings → Rules → Rulesets → New ruleset → New Branch ruleset**:
 
@@ -428,6 +429,6 @@ before merging. Direct pushes to `main` are blocked.
 
 ---
 
-## 10. Celebrate
+## 9. Celebrate
 
 You're done. Your service is live in production with a full CI/CD pipeline.
