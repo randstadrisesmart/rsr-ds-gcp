@@ -76,4 +76,18 @@ locals {
       ]
     }
   }
+    sociallistening = {
+      repo          = "rsr-ds-sociallistening"
+      build_group   = "analysis"
+      region        = "europe-west1"
+      build_secrets = ["es-api-key", "hashstore-json", "encryptstore-json"]
+      sync_tables   = [
+        { dataset_name = "financial_data", table_name = "eod_quarterly_financial_reports", sync_frequency = "daily", region = "US" },
+        { dataset_name = "financial_data", table_name = "eod_financial_news", sync_frequency = "daily", region = "US" },
+        { dataset_name = "webscrapers", table_name = "indeed_us_company_names", sync_frequency = "weekly", region = "US" },
+        { dataset_name = "webscrapers", table_name = "glassdoor_dot_com_company_ratings_new", sync_frequency = "weekly", region = "US" },
+        { dataset_name = "webscrapers", table_name = "brandwatch_company_reviews", sync_frequency = "daily", region = "US" },
+      ]
+    }
+  }
 }
