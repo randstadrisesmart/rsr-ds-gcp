@@ -75,7 +75,6 @@ locals {
         { dataset_name = "rasco_taxonomy_fixes_US", table_name = "rasco_fixer_output_integration", sync_frequency = "once", region = "us-east1" },
       ]
     }
-  }
     sociallistening = {
       repo          = "rsr-ds-sociallistening"
       build_group   = "analysis"
@@ -91,3 +90,4 @@ locals {
     }
   }
 }
+
