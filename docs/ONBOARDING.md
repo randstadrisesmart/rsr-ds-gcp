@@ -18,19 +18,22 @@ rsr-ds-{service}/
 │   ├── pr-build.yaml         # PR status check (test + lint only)
 │   ├── dev-build.yaml        # CI/CD pipeline for dev
 │   └── prod-build.yaml       # CI/CD pipeline for prod
+├── src/                      # Python modules referenced by main.py
+│   ├── module_a.py
+│   └── module_b.py
 ├── tests/
 │   └── test_*.py             # pytest discovers these automatically
 ├── archive/                  # anything not needed for deployment
 ├── Dockerfile                # builds the deployable image
 ├── .dockerignore
 ├── .gitignore
-├── server.py                 # (or src/ folder — your app code)
+├── main.py                   # entry point — imports from src/
 ├── requirements.txt          # runtime dependencies
 ├── requirements-test.txt     # test dependencies (pytest, pytest-cov)
 └── start.sh                  # (if needed) container entrypoint
 ```
 
-### Service requirements
+### 1.1 Service requirements
 
 - App must listen on **port 8080**
 - Add a health check endpoint `/health`
@@ -38,9 +41,138 @@ rsr-ds-{service}/
 - Use `ENV` env var (`dev` or `prd`) for environment-specific config — injected
   at deploy time by Cloud Build
 - External credentials, API keys, or secrets must be stored in **Secret
-  Manager** — no hardcoded strings (see Step 5 for details)
+  Manager** — no hardcoded strings (see 1.3)
+- No file larger than **10 MB** in the repo — large data files should be
+  uploaded to a GCS bucket and downloaded at startup (see 1.2)
 
-### CODEOWNERS
+### 1.2 Large files
+
+If your service has data files over 10 MB (models, geojson, reference data),
+upload them to a GCS bucket and download them at startup instead of committing
+them to git. The shared bucket `location_object` in DEV is used for this —
+both the DEV and PRD runtime SAs have read access to it.
+
+**Option A — from the console:**
+
+1. Go to **Cloud Storage → Buckets** in the DEV project:
+   https://console.cloud.google.com/storage/browser?project=rsr-ds-group-dev-f193
+2. Open the bucket (e.g. `location_object`) or create a new one
+3. Click **Upload Files** or **Upload Folder**
+4. Navigate to and select the files to upload
+
+**Option B — from the CLI:**
+
+```bash
+# Upload a single file
+gcloud storage cp ./path/to/large_file.json gs://location_object/my_folder/
+
+# Upload an entire directory
+gcloud storage cp -r ./geojsonMaps gs://location_object/geojsonMaps/
+```
+
+Then add a download step in your `make_{service}.py` init function:
+
+```python
+def download_blob(bucket_name, file_dir, local_file_dir):
+    """Download all blobs with a given prefix from GCS."""
+    from google.cloud import storage
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blobs = bucket.list_blobs(prefix=file_dir)
+    for blob in blobs:
+        local_path = os.path.join(local_file_dir, os.path.relpath(blob.name, file_dir))
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        blob.download_to_filename(local_path)
+
+def init():
+    download_blob("location_object", "geojsonMaps", "geojsonMaps")
+    # ... other downloads
+```
+
+Add the file paths to `.gitignore` so they aren't committed.
+
+### 1.3 Secrets
+
+> **Skip this** if your service has no secrets (no API keys, no
+> credentials, no encryption keys).
+
+All secrets live in **OPS Secret Manager** (`rsr-ds-group-ops-d0b0`). There
+are two types depending on when the secret is needed:
+
+| Type | When it's used | Who reads it | How access is granted |
+|------|---------------|-------------|---------------------|
+| **Build-time** | During `docker build` (e.g. downloading models) | Build SA (`svc-build-{group}@ops`) | Per-secret, via `build_secrets` in `services.tf` |
+| **Runtime** | While the app is running (e.g. API keys) | Runtime SA (`svc-ai-platform@dev/prd`) | Project-level, already granted |
+
+#### Creating a secret
+
+**Option A — from the console:**
+
+1. Go to **Security → Secret Manager** in the OPS project:
+   https://console.cloud.google.com/security/secret-manager?project=rsr-ds-group-ops-d0b0
+2. Click **Create Secret**
+3. Enter a name (e.g. `es-api-key`)
+4. Paste the secret value or upload a file
+5. Click **Create Secret**
+
+**Option B — from the CLI:**
+
+```bash
+# From a value
+echo -n "your-secret-value" | gcloud secrets create {secret-name} \
+  --project=rsr-ds-group-ops-d0b0 --data-file=- --replication-policy=automatic
+
+# From a file
+gcloud secrets create {secret-name} \
+  --project=rsr-ds-group-ops-d0b0 --data-file=/path/to/file.json \
+  --replication-policy=automatic
+```
+
+#### Updating a secret
+
+```bash
+echo -n "new-value" | gcloud secrets versions add {secret-name} \
+  --project=rsr-ds-group-ops-d0b0 --data-file=-
+```
+
+#### Build-time secrets
+
+If a secret is needed during `docker build` (e.g. `hf-token` for downloading
+HuggingFace models), add it to `build_secrets` in `services.tf` (see Step 3):
+
+```hcl
+build_secrets = ["hf-token"]
+```
+
+Terraform grants `secretmanager.secretAccessor` on each listed secret to
+the group's build SA. Then reference the secret in your build yaml using
+Cloud Build's `--secret-env` or `secretEnv` syntax.
+
+#### Runtime secrets
+
+If a secret is needed while the app is running, fetch it via the Secret
+Manager API at startup. The runtime SAs (`svc-ai-platform@dev` and
+`svc-ai-platform@prd`) already have project-level `secretmanager.secretAccessor`
+on OPS, so no additional IAM is needed — just create the secret and fetch it.
+
+```python
+from google.cloud import secretmanager
+
+def get_secret(secret_id, project="rsr-ds-group-ops-d0b0"):
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project}/secrets/{secret_id}/versions/latest"
+    return client.access_secret_version(name=name).payload.data.decode("utf-8")
+
+# Example usage at startup
+ES_API_KEY = get_secret("es-api-key")
+```
+
+Add `google-cloud-secret-manager` to `requirements.txt`.
+
+No changes to deploy yamls are needed — the app fetches secrets directly.
+The next cold start automatically picks up any updated secret values.
+
+### 1.4 CODEOWNERS
 
 Copy the CODEOWNERS file from this repo into your service:
 
@@ -48,7 +180,7 @@ Copy the CODEOWNERS file from this repo into your service:
 cp -r /path/to/rsr-ds-gcp/templates/.github .github
 ```
 
-### Build yamls
+### 1.5 Build yamls
 
 Copy the templates from this repo into your service at `deploy/`:
 
@@ -74,20 +206,20 @@ Open each file and review the substitutions at the top:
 | 4 | 16Gi |
 | 8 | 32Gi |
 
-### requirements.txt
+### 1.6 requirements.txt
 
 List your runtime Python dependencies. The CI test step runs in a plain
 `python:3.11` container (not your Docker image), so it installs these
 before running tests.
 
-### requirements-test.txt
+### 1.7 requirements-test.txt
 
 ```
 pytest
 pytest-cov
 ```
 
-### .gitignore
+### 1.8 .gitignore
 
 ```
 __pycache__/
@@ -97,9 +229,9 @@ __pycache__/
 .env
 ```
 
-Add any service-specific entries (e.g. `*.gguf`, `models/`).
+Add any service-specific entries (e.g. `*.gguf`, `models/`, large data files).
 
-### .dockerignore
+### 1.9 .dockerignore
 
 ```
 .git
@@ -115,15 +247,30 @@ deploy/
 archive/
 ```
 
-### Pre-flight: lint and test locally
+### 1.10 Pre-flight: lint, test, and scan locally
 
-CI will reject your first push if lint or tests fail. Save yourself a round-trip:
+CI will reject your first push if lint or tests fail. Run these checks before
+pushing — they work on Mac, Linux, and Windows:
 
 ```bash
-pip install ruff pytest pytest-cov
-ruff check . --exclude archive/   # fix any issues before pushing
+pip install ruff pytest pytest-cov detect-secrets
+
+# Lint
+ruff check . --exclude archive/
+
+# Test
 pytest tests/
+
+# Scan for hardcoded secrets (API keys, passwords, tokens)
+detect-secrets scan --all-files .
+
+# Check for files over 10 MB (should not be committed — upload to GCS instead)
+python3 -c "import os; [print(f'{os.path.getsize(os.path.join(r,f))/1e6:.1f}MB {os.path.join(r,f)}') for r,d,fs in os.walk('.') for f in fs if os.path.getsize(os.path.join(r,f))>10_000_000 and '.git' not in r]"
 ```
+
+If `detect-secrets` finds anything, move those values to Secret Manager
+(see 1.3). If the file size check finds anything, upload the file to GCS
+and download it at startup instead of committing it (see 1.2).
 
 ---
 
@@ -191,7 +338,7 @@ locals {
     {service} = {
       repo          = "rsr-ds-{service}"
       build_group   = "ollama"              # see Build Groups below
-      build_secrets = ["secret-name"]        # see Step 5 — omit if none
+      build_secrets = ["secret-name"]        # see 1.3 — omit if none
       iap           = true                  # see IAP below (frontend services only)
       sync_tables   = []
     }
@@ -213,7 +360,7 @@ group already exists, no new IAM request is needed.
 
 Pick the group that fits your service. If none fits, create a new group name —
 Terraform will create the SA automatically, and you'll need to request IAM
-bindings for it (Step 6).
+bindings for it (Step 5).
 
 ### Optional fields
 
@@ -240,7 +387,7 @@ backend APIs.
 access to at build time (e.g. `hf-token` for HuggingFace downloads). Terraform
 grants `secretmanager.secretAccessor` on each secret to the group's build SA.
 Omit if your build doesn't need any secrets. Runtime secrets are not managed
-by Terraform — see Step 5 for both build-time and runtime secrets.
+by Terraform — see 1.3 for both build-time and runtime secrets.
 
 **`sync_tables`** — BigQuery tables to sync from DEV to PRD. Use
 `sync_tables = []` if your service has no BQ tables.
@@ -310,97 +457,14 @@ git push origin ops
 If the build SA didn't already exist, Terraform creates:
 - Build SA: `svc-build-{build_group}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
 - PubSub publisher grant for the build SA
-- The new SA needs IAM bindings from the infra team — see Step 6
+- The new SA needs IAM bindings from the infra team — see Step 5
 
 Terraform always creates:
 - Cloud Build triggers (dev + prod) for this service
 
 ---
 
-## 5. Add Secrets
-
-> **Skip this step** if your service has no secrets (no API keys, no
-> credentials, no encryption keys).
-
-All secrets live in **OPS Secret Manager** (`rsr-ds-group-ops-d0b0`). There
-are two types depending on when the secret is needed:
-
-| Type | When it's used | Who reads it | How access is granted |
-|------|---------------|-------------|---------------------|
-| **Build-time** | During `docker build` (e.g. downloading models) | Build SA (`svc-build-{group}@ops`) | Per-secret, via `build_secrets` in `services.tf` |
-| **Runtime** | While the app is running (e.g. API keys) | Runtime SA (`svc-ai-platform@dev/prd`) | Project-level, already granted |
-
-### Creating a secret
-
-**Option A — from the console:**
-
-1. Go to **Security → Secret Manager** in the OPS project:
-   https://console.cloud.google.com/security/secret-manager?project=rsr-ds-group-ops-d0b0
-2. Click **Create Secret**
-3. Enter a name (e.g. `es-api-key`)
-4. Paste the secret value or upload a file
-5. Click **Create Secret**
-
-**Option B — from the CLI:**
-
-```bash
-# From a value
-echo -n "your-secret-value" | gcloud secrets create {secret-name} \
-  --project=rsr-ds-group-ops-d0b0 --data-file=- --replication-policy=automatic
-
-# From a file
-gcloud secrets create {secret-name} \
-  --project=rsr-ds-group-ops-d0b0 --data-file=/path/to/file.json \
-  --replication-policy=automatic
-```
-
-### Updating a secret
-
-```bash
-echo -n "new-value" | gcloud secrets versions add {secret-name} \
-  --project=rsr-ds-group-ops-d0b0 --data-file=-
-```
-
-### Build-time secrets
-
-If a secret is needed during `docker build` (e.g. `hf-token` for downloading
-HuggingFace models), add it to `build_secrets` in `services.tf`:
-
-```hcl
-build_secrets = ["hf-token"]
-```
-
-Terraform grants `secretmanager.secretAccessor` on each listed secret to
-the group's build SA. Then reference the secret in your build yaml using
-Cloud Build's `--secret-env` or `secretEnv` syntax.
-
-### Runtime secrets
-
-If a secret is needed while the app is running, fetch it via the Secret
-Manager API at startup. The runtime SAs (`svc-ai-platform@dev` and
-`svc-ai-platform@prd`) already have project-level `secretmanager.secretAccessor`
-on OPS, so no additional IAM is needed — just create the secret and fetch it.
-
-```python
-from google.cloud import secretmanager
-
-def get_secret(secret_id, project="rsr-ds-group-ops-d0b0"):
-    client = secretmanager.SecretManagerServiceClient()
-    name = f"projects/{project}/secrets/{secret_id}/versions/latest"
-    return client.access_secret_version(name=name).payload.data.decode("utf-8")
-
-# Example usage at startup
-ES_API_KEY = get_secret("es-api-key")
-```
-
-Add `google-cloud-secret-manager` to `requirements.txt`.
-
-No changes to deploy yamls are needed — the app fetches secrets directly.
-The next cold start automatically picks up any updated secret values.
-
----
-
-## 6. Request IAM Bindings from Infra Team
+## 5. Request IAM Bindings from Infra Team
 
 Submit a single
 [GCP Requests](https://randstadglobal.service-now.com/motion?id=sc_cat_item&sys_id=c1b08a2587285510691d62480cbb3584&referrer=popular_items)
@@ -433,7 +497,7 @@ The template grants two roles on both DEV and PRD:
 
 ---
 
-## 7. Connect Repo to Cloud Build
+## 6. Connect Repo to Cloud Build
 
 Before triggers can reference your repo, it must be connected to the Cloud Build
 GitHub App in the OPS project.
@@ -450,7 +514,7 @@ GitHub App in the OPS project.
 
 ---
 
-## 8. Initial Deploy
+## 7. Initial Deploy
 
 ### Initial Dev Deploy
 
@@ -523,7 +587,7 @@ working correctly in production.
 
 ---
 
-## 9. Configure Repo Settings
+## 8. Configure Repo Settings
 
 Now that the initial deploy is done and the first build has run, configure
 the repo settings to enforce code review and squash merging.
@@ -556,6 +620,6 @@ before merging. Direct pushes to `main` are blocked.
 
 ---
 
-## 10. Celebrate
+## 9. Celebrate
 
 You're done. Your service is live in production with a full CI/CD pipeline.

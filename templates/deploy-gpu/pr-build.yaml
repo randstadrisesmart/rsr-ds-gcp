@@ -26,5 +26,42 @@ steps:
         ruff check . --exclude archive/
     waitFor: ['-']
 
+  # ─── SCAN FOR HARDCODED SECRETS ────────────────────────
+  - id: 'scan-secrets'
+    name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install detect-secrets
+        detect-secrets scan --all-files --exclude-files '\.git/.*' . | python3 -c "
+        import json,sys; r=json.load(sys.stdin)
+        if r.get('results'):
+            print('SECRETS FOUND:')
+            for f,ss in r['results'].items():
+                print(f'  {f}: {[s[\"type\"] for s in ss]}')
+            sys.exit(1)
+        print('No secrets detected.')
+        "
+    waitFor: ['-']
+
+  # ─── CHECK FILE SIZES ─────────────────────────────────
+  - id: 'check-file-sizes'
+    name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        python3 -c "
+        import os,sys
+        big=[os.path.join(r,f) for r,d,fs in os.walk('.') for f in fs if os.path.getsize(os.path.join(r,f))>10_000_000 and '.git' not in r]
+        if big:
+            print('Files over 10MB (move to GCS):')
+            for f in big: print(f'  {os.path.getsize(f)/1e6:.1f}MB {f}')
+            sys.exit(1)
+        print('No oversized files.')
+        "
+    waitFor: ['-']
+
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -207,7 +207,7 @@ list.
 | PRD | `roles/iam.serviceAccountUser` | Set runtime SA on deploy |
 
 > Build SA roles are requested from the infra team via ServiceNow — see
-> [ONBOARDING.md Step 6](ONBOARDING.md#6-request-iam-bindings-from-infra-team).
+> [ONBOARDING.md Step 5](ONBOARDING.md#5-request-iam-bindings-from-infra-team).
 
 ### Runtime SA roles (per environment)
 
@@ -235,7 +235,7 @@ All secrets live in **OPS Secret Manager**. There are two types:
   startup. No Terraform or deploy yaml changes needed — the runtime SAs
   already have project-level access to all secrets in OPS.
 
-See [ONBOARDING.md Step 5](ONBOARDING.md#5-add-secrets) for instructions on
+See [ONBOARDING.md Section 1.3](ONBOARDING.md#13-secrets) for instructions on
 creating and using secrets.
 
 ---
