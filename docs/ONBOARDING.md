@@ -38,7 +38,7 @@ rsr-ds-{service}/
 - Use `ENV` env var (`dev` or `prd`) for environment-specific config — injected
   at deploy time by Cloud Build
 - External credentials, API keys, or secrets must be stored in **Secret
-  Manager** — no hardcoded strings (see Step 4b for details)
+  Manager** — no hardcoded strings (see Step 5 for details)
 
 ### CODEOWNERS
 
@@ -191,7 +191,7 @@ locals {
     {service} = {
       repo          = "rsr-ds-{service}"
       build_group   = "ollama"              # see Build Groups below
-      build_secrets = ["name"]              # see Build Secrets below
+      build_secrets = ["secret-name"]        # see Step 5 — omit if none
       iap           = true                  # see IAP below (frontend services only)
       sync_tables   = []
     }
@@ -213,7 +213,7 @@ group already exists, no new IAM request is needed.
 
 Pick the group that fits your service. If none fits, create a new group name —
 Terraform will create the SA automatically, and you'll need to request IAM
-bindings for it (Step 5).
+bindings for it (Step 6).
 
 ### Optional fields
 
@@ -239,7 +239,8 @@ backend APIs.
 **`build_secrets`** — list of OPS Secret Manager secret IDs the build SA needs
 access to at build time (e.g. `hf-token` for HuggingFace downloads). Terraform
 grants `secretmanager.secretAccessor` on each secret to the group's build SA.
-Omit if your build doesn't need any secrets.
+Omit if your build doesn't need any secrets. Runtime secrets are not managed
+by Terraform — see Step 5 for both build-time and runtime secrets.
 
 **`sync_tables`** — BigQuery tables to sync from DEV to PRD. Use
 `sync_tables = []` if your service has no BQ tables.
@@ -309,96 +310,97 @@ git push origin ops
 If the build SA didn't already exist, Terraform creates:
 - Build SA: `svc-build-{build_group}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
 - PubSub publisher grant for the build SA
-- The new SA needs IAM bindings from the infra team — see Step 5
+- The new SA needs IAM bindings from the infra team — see Step 6
 
 Terraform always creates:
 - Cloud Build triggers (dev + prod) for this service
 
 ---
 
-## 4b. Runtime Secrets
+## 5. Add Secrets
 
-If your service needs secrets at **runtime** (API keys, encryption keys,
-credentials used while handling requests), they go in each project's Secret
-Manager (DEV and PRD) — not OPS. This is because Cloud Run resolves
-`--update-secrets` references from the project the service is deployed in.
+> **Skip this step** if your service has no secrets (no API keys, no
+> credentials, no encryption keys).
 
-> **Build secrets vs runtime secrets:**
-> - **Build secrets** (`build_secrets` in `services.tf`) live in OPS and are
->   available during `docker build` — e.g. `hf-token` to download models.
-> - **Runtime secrets** live in DEV and PRD and are mounted on the running
->   Cloud Run container — e.g. API keys, encryption keys, database credentials.
+All secrets live in **OPS Secret Manager** (`rsr-ds-group-ops-d0b0`). There
+are two types depending on when the secret is needed:
 
-### How we did it (sociallistening example)
+| Type | When it's used | Who reads it | How access is granted |
+|------|---------------|-------------|---------------------|
+| **Build-time** | During `docker build` (e.g. downloading models) | Build SA (`svc-build-{group}@ops`) | Per-secret, via `build_secrets` in `services.tf` |
+| **Runtime** | While the app is running (e.g. API keys) | Runtime SA (`svc-ai-platform@dev/prd`) | Project-level, already granted |
 
-We created the same secrets in both DEV and PRD, then granted the runtime SA
-access and added `--update-secrets` to the deploy yamls.
+### Creating a secret
 
-### Step-by-step
+**Option A — from the console:**
 
-**1. Create the secret in DEV and PRD:**
+1. Go to **Security → Secret Manager** in the OPS project:
+   https://console.cloud.google.com/security/secret-manager?project=rsr-ds-group-ops-d0b0
+2. Click **Create Secret**
+3. Enter a name (e.g. `es-api-key`)
+4. Paste the secret value or upload a file
+5. Click **Create Secret**
+
+**Option B — from the CLI:**
 
 ```bash
-# As an env var (e.g. API key)
+# From a value
 echo -n "your-secret-value" | gcloud secrets create {secret-name} \
-  --project=rsr-ds-group-dev-f193 --data-file=- --replication-policy=automatic
+  --project=rsr-ds-group-ops-d0b0 --data-file=- --replication-policy=automatic
 
-# Or from a file (e.g. JSON key file)
+# From a file
 gcloud secrets create {secret-name} \
-  --project=rsr-ds-group-dev-f193 --data-file=/path/to/file.json \
+  --project=rsr-ds-group-ops-d0b0 --data-file=/path/to/file.json \
   --replication-policy=automatic
-
-# Repeat for PRD
-# ... --project=rsr-ds-group-prd-83ad ...
 ```
 
-**2. Grant the runtime SA access in each project:**
+### Updating a secret
 
 ```bash
-gcloud secrets add-iam-policy-binding {secret-name} \
-  --project=rsr-ds-group-dev-f193 \
-  --member="serviceAccount:svc-ai-platform@rsr-ds-group-dev-f193.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
-
-# Repeat for PRD with the PRD SA and project
+echo -n "new-value" | gcloud secrets versions add {secret-name} \
+  --project=rsr-ds-group-ops-d0b0 --data-file=-
 ```
 
-**3. Add `--update-secrets` to the deploy step in your build yamls:**
+### Build-time secrets
 
-Secrets can be mounted as **env vars** or **files**:
+If a secret is needed during `docker build` (e.g. `hf-token` for downloading
+HuggingFace models), add it to `build_secrets` in `services.tf`:
 
-```yaml
-# As an env var — app reads os.environ['MY_API_KEY']
-- '--update-secrets=MY_API_KEY=my-api-key:latest'
-
-# As a file — app reads from the mount path
-# IMPORTANT: Cloud Run allows only ONE secret per directory.
-# If you have multiple file secrets, mount each in its own subdirectory.
-- '--update-secrets=/app/secrets/a/keyfile.json=keyfile-secret:latest,/app/secrets/b/other.json=other-secret:latest'
+```hcl
+build_secrets = ["hf-token"]
 ```
 
-### Constraints
+Terraform grants `secretmanager.secretAccessor` on each listed secret to
+the group's build SA. Then reference the secret in your build yaml using
+Cloud Build's `--secret-env` or `secretEnv` syntax.
 
-- `--update-secrets` only resolves secrets from the **same project** as the
-  Cloud Run service. Cross-project references (e.g. `projects/other-project/secrets/...`)
-  are not supported in the shorthand syntax.
-- Cloud Run allows only **one secret per mount directory**. If you need multiple
-  file-mounted secrets, put each in its own subdirectory.
-- The secret value can be updated in Secret Manager without redeploying — the
-  next container instance will pick up the latest version (if using `:latest`).
+### Runtime secrets
 
-### Alternative approaches
+If a secret is needed while the app is running, fetch it via the Secret
+Manager API at startup. The runtime SAs (`svc-ai-platform@dev` and
+`svc-ai-platform@prd`) already have project-level `secretmanager.secretAccessor`
+on OPS, so no additional IAM is needed — just create the secret and fetch it.
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| **Per-project secrets (what we do)** | Simple `--update-secrets` syntax, works with Cloud Run natively, secrets updateable without redeploy | Must create and maintain secrets in both DEV and PRD |
-| **Fetch from OPS at runtime via API** | Single source of truth in OPS, no duplication | Requires code changes (`secretmanager.SecretManagerServiceClient`), adds latency at startup, runtime SA needs cross-project IAM |
-| **Env vars in deploy yaml** | Simplest to set up | Values visible in Cloud Run console and build logs, not rotatable without redeploy |
-| **Bake into Docker image** | No Secret Manager needed | Secrets in image layers, visible to anyone with AR access, not rotatable |
+```python
+from google.cloud import secretmanager
+
+def get_secret(secret_id, project="rsr-ds-group-ops-d0b0"):
+    client = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{project}/secrets/{secret_id}/versions/latest"
+    return client.access_secret_version(name=name).payload.data.decode("utf-8")
+
+# Example usage at startup
+ES_API_KEY = get_secret("es-api-key")
+```
+
+Add `google-cloud-secret-manager` to `requirements.txt`.
+
+No changes to deploy yamls are needed — the app fetches secrets directly.
+The next cold start automatically picks up any updated secret values.
 
 ---
 
-## 5. Request IAM Bindings from Infra Team
+## 6. Request IAM Bindings from Infra Team
 
 Submit a single
 [GCP Requests](https://randstadglobal.service-now.com/motion?id=sc_cat_item&sys_id=c1b08a2587285510691d62480cbb3584&referrer=popular_items)
@@ -415,11 +417,14 @@ The build SA needs cross-project permissions that are managed by the infra team
 
 ### User access bindings
 
+> **Skip this** if the group already has `run.invoker` on DEV and PRD
+> (i.e. another service already requested access for this group). The DS team already has access.
+
 Any Google Group that needs to call your service (via API or browser) needs
 IAM bindings. Copy `templates/iam_request_user.csv` and replace
 `{google-group}` with the group name (e.g.
 `gcp-rsr-ds-group-ops@randstadservices.com`). Submit once per group that
-needs access. The DS Team already has access.
+needs access.
 
 The template grants two roles on both DEV and PRD:
 - `roles/run.invoker` — required for any group calling the Cloud Run service
@@ -428,7 +433,7 @@ The template grants two roles on both DEV and PRD:
 
 ---
 
-## 6. Connect Repo to Cloud Build
+## 7. Connect Repo to Cloud Build
 
 Before triggers can reference your repo, it must be connected to the Cloud Build
 GitHub App in the OPS project.
@@ -440,12 +445,12 @@ GitHub App in the OPS project.
 4. **Source:** GitHub (Cloud Build GitHub App)
 5. Under **Repository**, if your repo doesn't appear, click **"Edit Repositories on GitHub"**
 6. Select your repo (`rsr-ds-{service}`) and click **"Update Access"**
-7. Back in Connect repositoy, select the repo and confirm the connection
+7. Back in Connect repository, select the repo and confirm the connection
 8. Click **Done**
 
 ---
 
-## 7. Initial Deploy
+## 8. Initial Deploy
 
 ### Initial Dev Deploy
 
@@ -518,7 +523,7 @@ working correctly in production.
 
 ---
 
-## 8. Configure Repo Settings
+## 9. Configure Repo Settings
 
 Now that the initial deploy is done and the first build has run, configure
 the repo settings to enforce code review and squash merging.
@@ -551,6 +556,6 @@ before merging. Direct pushes to `main` are blocked.
 
 ---
 
-## 9. Celebrate
+## 10. Celebrate
 
 You're done. Your service is live in production with a full CI/CD pipeline.
