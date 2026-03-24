@@ -37,8 +37,8 @@ rsr-ds-{service}/
 - App must be **stateless** — no local disk state between requests
 - Use `ENV` env var (`dev` or `prd`) for environment-specific config — injected
   at deploy time by Cloud Build
-- External credentials, API keys, or secrets must be stored in **OPS Secret
-  Manager** or passed at build time as env vars — no hardcoded strings
+- External credentials, API keys, or secrets must be stored in **Secret
+  Manager** — no hardcoded strings (see Step 4b for details)
 
 ### CODEOWNERS
 
@@ -61,9 +61,18 @@ Open each file and review the substitutions at the top:
 |-------------|---------|----------------|
 | `_SERVICE_NAME` | `CHANGE_ME` | **Always** — set to your service name |
 | `_REGION` | `us-east1` | If co-locating with a dependency (e.g. `europe-west1`) |
-| `_MEMORY` | `512Mi` | If loading heavy models at startup (e.g. `32Gi`) |
-| `_CPU` | `1` | If loading heavy models at startup (e.g. `4`) |
+| `_MEMORY` | `512Mi` | If loading heavy models at startup (e.g. `16Gi`) |
+| `_CPU` | `1` | Must match memory — see limits below |
 | `_TIMEOUT` | `300` | If startup takes more than 5 min (e.g. `1800` = 30 min) |
+
+**Cloud Run memory/CPU limits:**
+
+| CPU | Max memory |
+|-----|-----------|
+| 1 | 4Gi |
+| 2 | 8Gi |
+| 4 | 16Gi |
+| 8 | 32Gi |
 
 ### requirements.txt
 
@@ -304,6 +313,88 @@ If the build SA didn't already exist, Terraform creates:
 
 Terraform always creates:
 - Cloud Build triggers (dev + prod) for this service
+
+---
+
+## 4b. Runtime Secrets
+
+If your service needs secrets at **runtime** (API keys, encryption keys,
+credentials used while handling requests), they go in each project's Secret
+Manager (DEV and PRD) — not OPS. This is because Cloud Run resolves
+`--update-secrets` references from the project the service is deployed in.
+
+> **Build secrets vs runtime secrets:**
+> - **Build secrets** (`build_secrets` in `services.tf`) live in OPS and are
+>   available during `docker build` — e.g. `hf-token` to download models.
+> - **Runtime secrets** live in DEV and PRD and are mounted on the running
+>   Cloud Run container — e.g. API keys, encryption keys, database credentials.
+
+### How we did it (sociallistening example)
+
+We created the same secrets in both DEV and PRD, then granted the runtime SA
+access and added `--update-secrets` to the deploy yamls.
+
+### Step-by-step
+
+**1. Create the secret in DEV and PRD:**
+
+```bash
+# As an env var (e.g. API key)
+echo -n "your-secret-value" | gcloud secrets create {secret-name} \
+  --project=rsr-ds-group-dev-f193 --data-file=- --replication-policy=automatic
+
+# Or from a file (e.g. JSON key file)
+gcloud secrets create {secret-name} \
+  --project=rsr-ds-group-dev-f193 --data-file=/path/to/file.json \
+  --replication-policy=automatic
+
+# Repeat for PRD
+# ... --project=rsr-ds-group-prd-83ad ...
+```
+
+**2. Grant the runtime SA access in each project:**
+
+```bash
+gcloud secrets add-iam-policy-binding {secret-name} \
+  --project=rsr-ds-group-dev-f193 \
+  --member="serviceAccount:svc-ai-platform@rsr-ds-group-dev-f193.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Repeat for PRD with the PRD SA and project
+```
+
+**3. Add `--update-secrets` to the deploy step in your build yamls:**
+
+Secrets can be mounted as **env vars** or **files**:
+
+```yaml
+# As an env var — app reads os.environ['MY_API_KEY']
+- '--update-secrets=MY_API_KEY=my-api-key:latest'
+
+# As a file — app reads from the mount path
+# IMPORTANT: Cloud Run allows only ONE secret per directory.
+# If you have multiple file secrets, mount each in its own subdirectory.
+- '--update-secrets=/app/secrets/a/keyfile.json=keyfile-secret:latest,/app/secrets/b/other.json=other-secret:latest'
+```
+
+### Constraints
+
+- `--update-secrets` only resolves secrets from the **same project** as the
+  Cloud Run service. Cross-project references (e.g. `projects/other-project/secrets/...`)
+  are not supported in the shorthand syntax.
+- Cloud Run allows only **one secret per mount directory**. If you need multiple
+  file-mounted secrets, put each in its own subdirectory.
+- The secret value can be updated in Secret Manager without redeploying — the
+  next container instance will pick up the latest version (if using `:latest`).
+
+### Alternative approaches
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Per-project secrets (what we do)** | Simple `--update-secrets` syntax, works with Cloud Run natively, secrets updateable without redeploy | Must create and maintain secrets in both DEV and PRD |
+| **Fetch from OPS at runtime via API** | Single source of truth in OPS, no duplication | Requires code changes (`secretmanager.SecretManagerServiceClient`), adds latency at startup, runtime SA needs cross-project IAM |
+| **Env vars in deploy yaml** | Simplest to set up | Values visible in Cloud Run console and build logs, not rotatable without redeploy |
+| **Bake into Docker image** | No Secret Manager needed | Secrets in image layers, visible to anyone with AR access, not rotatable |
 
 ---
 
