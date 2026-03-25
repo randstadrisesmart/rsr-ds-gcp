@@ -83,21 +83,21 @@ locals {
       sync_tables   = [
         { dataset_name = "financial_data", table_name = "eod_quarterly_financial_reports", sync_frequency = "daily", region = "US" },
         { dataset_name = "financial_data", table_name = "eod_financial_news", sync_frequency = "daily", region = "US" },
-        { dataset_name = "webscrapers", table_name = "indeed_us_company_names", sync_frequency = "weekly", region = "US" },
-        { dataset_name = "webscrapers", table_name = "glassdoor_dot_com_company_ratings_new", sync_frequency = "weekly", region = "US" },
-        { dataset_name = "webscrapers", table_name = "brandwatch_company_reviews", sync_frequency = "daily", region = "US" },
+        { dataset_name = "webscrapers", table_name = "indeed_us_company_names", sync_frequency = "weekly", region = "us-east1" },
+        { dataset_name = "webscrapers", table_name = "glassdoor_dot_com_company_ratings_new", sync_frequency = "weekly", region = "us-east1" },
+        { dataset_name = "webscrapers", table_name = "brandwatch_company_reviews", sync_frequency = "daily", region = "us-east1" },
       ]
     }
     dynamic-insights = {
       repo        = "rsr-ds-dynamic-insights"
       build_group = "talent"
       sync_tables = [
-        { dataset_name = "webscrapers", table_name = "brandwatch_company_reviews", sync_frequency = "daily", region = "US" },
-        { dataset_name = "webscrapers", table_name = "talent_dot_com_taxation_data", sync_frequency = "weekly", region = "US" },
-        { dataset_name = "webscrapers", table_name = "numbeo_dot_com_cost_of_living", sync_frequency = "weekly", region = "US" },
-        { dataset_name = "webscrapers", table_name = "numbeo_dot_com_quality_of_life", sync_frequency = "weekly", region = "US" },
-        { dataset_name = "webscrapers", table_name = "indeed_us_company_names", sync_frequency = "weekly", region = "US" },
-        { dataset_name = "webscrapers", table_name = "glassdoor_dot_com_company_ratings_new", sync_frequency = "weekly", region = "US" },
+        { dataset_name = "webscrapers", table_name = "brandwatch_company_reviews", sync_frequency = "daily", region = "us-east1" },
+        { dataset_name = "webscrapers", table_name = "talent_dot_com_taxation_data", sync_frequency = "weekly", region = "us-east1" },
+        { dataset_name = "webscrapers", table_name = "numbeo_dot_com_cost_of_living", sync_frequency = "weekly", region = "us-east1" },
+        { dataset_name = "webscrapers", table_name = "numbeo_dot_com_quality_of_life", sync_frequency = "weekly", region = "us-east1" },
+        { dataset_name = "webscrapers", table_name = "indeed_us_company_names", sync_frequency = "weekly", region = "us-east1" },
+        { dataset_name = "webscrapers", table_name = "glassdoor_dot_com_company_ratings_new", sync_frequency = "weekly", region = "us-east1" },
         { dataset_name = "financial_data", table_name = "eod_quarterly_financial_reports", sync_frequency = "daily", region = "US" },
         { dataset_name = "financial_data", table_name = "eod_macro_indicators", sync_frequency = "daily", region = "US" },
         { dataset_name = "testdataset", table_name = "bgdata", sync_frequency = "once", region = "US" },
