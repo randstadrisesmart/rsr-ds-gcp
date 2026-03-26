@@ -50,7 +50,11 @@ steps:
       - '-c'
       - |
         pip install detect-secrets
-        detect-secrets scan --all-files --exclude-files '\.git/.*' . | python3 -c "
+        EXCLUDE='\.git/.*'
+        for dir in ${_GCS_DIRECTORIES}; do
+          EXCLUDE="$EXCLUDE|^\./$dir/"
+        done
+        detect-secrets scan --all-files --exclude-files "$EXCLUDE" . | python3 -c "
         import json,sys; r=json.load(sys.stdin)
         if r.get('results'):
             print('SECRETS FOUND:')
