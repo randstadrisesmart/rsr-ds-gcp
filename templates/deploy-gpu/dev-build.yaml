@@ -14,6 +14,10 @@
 substitutions:
   _SERVICE_NAME: CHANGE_ME              # e.g. ollama
   _REGION: europe-west1                 # GPU L4 availability — check region support
+  _STARTUP_PROBE_THRESHOLD: '30'       # failureThreshold — increase for slow startup (e.g. 180 = 30 min)
+  # ── GCS data ——                     # to download files > 10GB during build. leave empty if none.
+  _GCS_BUCKET: ''                      # e.g. location_object
+  _GCS_DIRECTORIES: ''                 # space-separated dirs (e.g. 'models geojsonMaps data')
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
 
@@ -73,6 +77,23 @@ steps:
         print('No oversized files.')
         "
 
+  # ─── DOWNLOAD GCS DATA ───
+  - id: 'download-gcs-data'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ -z "${_GCS_DIRECTORIES}" ]; then
+          echo "No GCS data to download, skipping."
+          exit 0
+        fi
+        for dir in ${_GCS_DIRECTORIES}; do
+          echo "Downloading gs://${_GCS_BUCKET}/$dir ..."
+          gcloud storage cp -r "gs://${_GCS_BUCKET}/$dir" "./$dir"
+        done
+    waitFor: ['-']
+
   # ─── BUILD ──────────────────────────────────────────────
   - id: 'build'
     name: 'gcr.io/cloud-builders/docker'
@@ -83,7 +104,7 @@ steps:
       - '-t'
       - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:latest'
       - '.'
-    waitFor: ['test', 'lint', 'scan-secrets', 'check-file-sizes']
+    waitFor: ['test', 'lint', 'scan-secrets', 'check-file-sizes', 'download-gcs-data']
 
   # ─── PUSH ──────────────────────────────────────────────
   - id: 'push'
@@ -106,7 +127,7 @@ steps:
       - '--project=${_PROJECT_DEV}'
       - '--region=${_REGION}'
       - '--service-account=svc-ai-platform@${_PROJECT_DEV}.iam.gserviceaccount.com'
-      - '--set-env-vars=ENV=${_ENV},BQ_PROJECT=${_PROJECT_DEV},GOOGLE_CLOUD_PROJECT=${_PROJECT_DEV}'
+      - '--set-env-vars=ENV=${_ENV},GCP_PROJECT_ID=${_PROJECT_DEV},BQ_PROJECT=${_PROJECT_DEV},GOOGLE_CLOUD_PROJECT=${_PROJECT_DEV}'
       - '--no-allow-unauthenticated'
       - '--gpu=1'
       - '--gpu-type=nvidia-l4'
@@ -117,6 +138,7 @@ steps:
       - '--min-instances=0'
       - '--max-instances=1'
       - '--no-cpu-throttling'
+      - '--startup-probe=periodSeconds=10,failureThreshold=${_STARTUP_PROBE_THRESHOLD},tcpSocket.port=8080'
     waitFor: ['push']
 
   # ─── ENABLE IAP (frontend services only) ───────────────

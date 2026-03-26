@@ -11,11 +11,15 @@
 substitutions:
   _SERVICE_NAME: CHANGE_ME             # e.g. ollama
   _REGION: europe-west1                # GPU L4 availability — check region support
+  _STARTUP_PROBE_THRESHOLD: '30'      # must match dev-build.yaml
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _PROJECT_PRD: rsr-ds-group-prd-83ad
   _ENV: prd
 
 steps:
+  # NOTE: GCS data (if any) is already baked into the DEV image.
+  # The prod pipeline copies that image — no re-download needed.
+
   # ─── COPY IMAGE: DEV AR → PRD AR ──────────────────────
   - id: 'copy-image'
     name: 'gcr.io/cloud-builders/docker'
@@ -47,7 +51,7 @@ steps:
       - '--project=${_PROJECT_PRD}'
       - '--region=${_REGION}'
       - '--service-account=svc-ai-platform@${_PROJECT_PRD}.iam.gserviceaccount.com'
-      - '--set-env-vars=ENV=${_ENV},BQ_PROJECT=${_PROJECT_PRD},GOOGLE_CLOUD_PROJECT=${_PROJECT_PRD}'
+      - '--set-env-vars=ENV=${_ENV},GCP_PROJECT_ID=${_PROJECT_PRD},BQ_PROJECT=${_PROJECT_PRD},GOOGLE_CLOUD_PROJECT=${_PROJECT_PRD}'
       - '--no-allow-unauthenticated'
       - '--gpu=1'
       - '--gpu-type=nvidia-l4'
@@ -58,6 +62,7 @@ steps:
       - '--min-instances=0'
       - '--max-instances=1'
       - '--no-cpu-throttling'
+      - '--startup-probe=periodSeconds=10,failureThreshold=${_STARTUP_PROBE_THRESHOLD},tcpSocket.port=8080'
     waitFor: ['copy-image']
 
   # ─── ENABLE IAP (frontend services only) ───────────────
@@ -76,6 +81,19 @@ steps:
           echo "IAP not enabled for this service, skipping."
         fi
     waitFor: ['deploy-prd']
+
+  # ─── NOTIFY SUCCESS (PubSub) ───────────────────────────
+  - id: 'notify'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'pubsub'
+      - 'topics'
+      - 'publish'
+      - 'pipelines_build_status'
+      - '--project=rsr-ds-group-ops-d0b0'
+      - '--message={"service":"${_SERVICE_NAME}","status":"success","commit":"${COMMIT_SHA}","env":"prd"}'
+    waitFor: ['enable-iap']
 
 options:
   logging: CLOUD_LOGGING_ONLY

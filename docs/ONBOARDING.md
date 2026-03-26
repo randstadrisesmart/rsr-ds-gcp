@@ -40,17 +40,26 @@ rsr-ds-{service}/
 - App must be **stateless** — no local disk state between requests
 - Use `ENV` env var (`dev` or `prd`) for environment-specific config — injected
   at deploy time by Cloud Build
-- External credentials, API keys, or secrets must be stored in **Secret
+- External credentials, API keys, or secrets must be stored in **Ops Secret
   Manager** — no hardcoded strings (see 1.3)
+- **No local credential files** — delete any `adc.json`, service account key
+  files, or personal gcloud credential files from the repo. Remove or guard
+  any `os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ...` lines in source
+  code. On Cloud Run, the service account provides credentials automatically
+  via Application Default Credentials (ADC) — no credential files are needed.
+  Hardcoded paths to local `adc.json` or `~/.config/gcloud/` files will cause
+  `DefaultCredentialsError` at runtime.
 - No file larger than **10 MB** in the repo — large data files should be
   uploaded to a GCS bucket and downloaded at startup (see 1.2)
 
 ### 1.2 Large files
 
 If your service has data files over 10 MB (models, geojson, reference data),
-upload them to a GCS bucket and download them at startup instead of committing
-them to git. The shared bucket `location_object` in DEV is used for this —
-both the DEV and PRD runtime SAs have read access to it.
+upload them to a GCS bucket instead of committing them to git. The shared
+bucket `location_object` in DEV is used for this — both the DEV and PRD
+build SAs have read access to it.
+
+#### Uploading to GCS
 
 **Option A — from the console:**
 
@@ -70,11 +79,29 @@ gcloud storage cp ./path/to/large_file.json gs://location_object/my_folder/
 gcloud storage cp -r ./geojsonMaps gs://location_object/geojsonMaps/
 ```
 
-Then add a download step in your `make_{service}.py` init function:
+#### Downloading at build time (recommended)
+
+The build yamls include a `download-gcs-data` step that downloads files from
+GCS and bakes them into the Docker image. Set the `_GCS_BUCKET` and
+`_GCS_DIRECTORIES` substitutions in your `dev-build.yaml` (see §1.5):
+
+```yaml
+_GCS_BUCKET: location_object
+_GCS_DIRECTORIES: 'geojsonMaps models reference_data'
+```
+
+The data is baked into the DEV image at build time. The prod pipeline copies
+that same image — no re-download needed.
+
+If your service also has an `init()` function that downloads from GCS at
+runtime, guard it so it skips when the data already exists (from the build):
 
 ```python
 def download_blob(bucket_name, file_dir, local_file_dir):
-    """Download all blobs with a given prefix from GCS."""
+    """Download all blobs with a given prefix from GCS. Skips if already exists."""
+    if os.path.isdir(local_file_dir) and os.listdir(local_file_dir):
+        print(f"Skipping {local_file_dir} (already exists)")
+        return
     from google.cloud import storage
     client = storage.Client()
     bucket = client.bucket(bucket_name)
@@ -83,10 +110,6 @@ def download_blob(bucket_name, file_dir, local_file_dir):
         local_path = os.path.join(local_file_dir, os.path.relpath(blob.name, file_dir))
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         blob.download_to_filename(local_path)
-
-def init():
-    download_blob("location_object", "geojsonMaps", "geojsonMaps")
-    # ... other downloads
 ```
 
 Add the file paths to `.gitignore` so they aren't committed.
@@ -196,6 +219,9 @@ Open each file and review the substitutions at the top:
 | `_MEMORY` | `512Mi` | If loading heavy models at startup (e.g. `16Gi`) |
 | `_CPU` | `1` | Must match memory — see limits below |
 | `_TIMEOUT` | `300` | If startup takes more than 5 min (e.g. `1800` = 30 min) |
+| `_STARTUP_PROBE_THRESHOLD` | `30` | Startup probe failure threshold (× 10s). Increase for slow startup (e.g. `180` = 30 min) |
+| `_GCS_BUCKET` | `''` | GCS bucket for large data files (see §1.2). Leave empty if none |
+| `_GCS_DIRECTORIES` | `''` | Space-separated dirs to download from bucket (e.g. `'models geojsonMaps data'`) |
 
 **Cloud Run memory/CPU limits:**
 
