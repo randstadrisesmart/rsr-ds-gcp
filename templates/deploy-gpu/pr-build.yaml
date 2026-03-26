@@ -34,14 +34,18 @@ steps:
       - '-c'
       - |
         pip install detect-secrets
-        detect-secrets scan --all-files $(git ls-files) | python3 -c "
+        BASELINE_FLAG=""
+        if [ -f .secrets.baseline ]; then BASELINE_FLAG="--baseline .secrets.baseline"; fi
+        OUTPUT=$(detect-secrets scan --all-files $$BASELINE_FLAG $(git ls-files))
+        if [ -z "$$OUTPUT" ]; then echo "No new secrets detected."; exit 0; fi
+        echo "$$OUTPUT" | python3 -c "
         import json,sys; r=json.load(sys.stdin)
         if r.get('results'):
             print('SECRETS FOUND:')
             for f,ss in r['results'].items():
                 print(f'  {f}: {[s[\"type\"] for s in ss]}')
             sys.exit(1)
-        print('No secrets detected.')
+        print('No new secrets detected.')
         "
     waitFor: ['-']
 
