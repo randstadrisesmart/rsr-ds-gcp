@@ -90,7 +90,7 @@ steps:
         fi
         for dir in ${_GCS_DIRECTORIES}; do
           echo "Downloading gs://${_GCS_BUCKET}/$dir ..."
-          gcloud storage cp -r "gs://${_GCS_BUCKET}/$dir" "./$dir"
+          gcloud storage cp -r "gs://${_GCS_BUCKET}/$dir" "."
         done
     waitFor: ['-']
 
