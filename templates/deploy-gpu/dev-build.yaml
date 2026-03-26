@@ -72,8 +72,9 @@ steps:
       - '-c'
       - |
         python3 -c "
-        import os,sys
-        big=[os.path.join(r,f) for r,d,fs in os.walk('.') for f in fs if os.path.getsize(os.path.join(r,f))>10_000_000 and '.git' not in r]
+        import os,sys,subprocess
+        files=subprocess.check_output(['git','ls-files'],text=True).splitlines()
+        big=[f for f in files if os.path.exists(f) and os.path.getsize(f)>10_000_000]
         if big:
             print('Files over 10MB (move to GCS):')
             for f in big: print(f'  {os.path.getsize(f)/1e6:.1f}MB {f}')
