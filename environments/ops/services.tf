@@ -93,6 +93,11 @@ locals {
       build_group = "analysis"
       sync_tables = []
     }
+    compensation = {
+      repo        = "rsr-ds-compensation"
+      build_group = "analysis"
+      sync_tables = []
+    }
     dynamic-insights = {
       repo        = "rsr-ds-dynamic-insights"
       build_group = "talent"

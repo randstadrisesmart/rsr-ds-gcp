@@ -17,6 +17,8 @@ substitutions:
   # ── GCS data ——                     # to download files > 10GB during build. leave empty if none.
   _GCS_BUCKET: ''                      # e.g. location_object
   _GCS_DIRECTORIES: ''                 # space-separated dirs (e.g. 'models geojsonMaps data')
+  # ── Runtime secrets ──              # leave empty if none
+  _RUNTIME_SECRETS: ''                 # e.g. 'ES_API_KEY=es-api-key:latest,/app/secrets/hash/hashstore.json=hashstore-json:latest'
   # ── Do not change ──
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
@@ -123,22 +125,27 @@ steps:
   # ─── DEPLOY TO DEV ─────────────────────────────────────
   - id: 'deploy-dev'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'gcloud'
+    entrypoint: 'bash'
     args:
-      - 'run'
-      - 'deploy'
-      - '${_SERVICE_NAME}'
-      - '--image=${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}'
-      - '--project=${_PROJECT_DEV}'
-      - '--region=${_REGION}'
-      - '--service-account=svc-ai-platform@${_PROJECT_DEV}.iam.gserviceaccount.com'
-      - '--set-env-vars=ENV=${_ENV},GCP_PROJECT_ID=${_PROJECT_DEV},BQ_PROJECT=${_PROJECT_DEV},GOOGLE_CLOUD_PROJECT=${_PROJECT_DEV}'
-      - '--no-allow-unauthenticated'
-      - '--memory=${_MEMORY}'
-      - '--cpu=${_CPU}'
-      - '--timeout=${_TIMEOUT}'
-      - '--cpu-boost'
-      - '--startup-probe=periodSeconds=10,failureThreshold=${_STARTUP_PROBE_THRESHOLD},tcpSocket.port=8080'
+      - '-c'
+      - |
+        SECRETS_FLAG=""
+        if [ -n "${_RUNTIME_SECRETS}" ]; then
+          SECRETS_FLAG="--update-secrets=${_RUNTIME_SECRETS}"
+        fi
+        gcloud run deploy ${_SERVICE_NAME} \
+          --image=${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA} \
+          --project=${_PROJECT_DEV} \
+          --region=${_REGION} \
+          --service-account=svc-ai-platform@${_PROJECT_DEV}.iam.gserviceaccount.com \
+          --set-env-vars=ENV=${_ENV},GCP_PROJECT_ID=${_PROJECT_DEV},BQ_PROJECT=${_PROJECT_DEV},GOOGLE_CLOUD_PROJECT=${_PROJECT_DEV} \
+          --no-allow-unauthenticated \
+          --memory=${_MEMORY} \
+          --cpu=${_CPU} \
+          --timeout=${_TIMEOUT} \
+          --cpu-boost \
+          --startup-probe=periodSeconds=10,failureThreshold=${_STARTUP_PROBE_THRESHOLD},tcpSocket.port=8080 \
+          $$SECRETS_FLAG
     waitFor: ['push']
 
   # ─── ENABLE IAP (frontend services only) ───────────────
