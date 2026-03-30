@@ -3,6 +3,7 @@ rsr-ds-group-dev-f193,serviceAccount,svc-build-{service}@rsr-ds-group-ops-d0b0.i
 rsr-ds-group-dev-f193,serviceAccount,svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com,roles/artifactregistry.reader,
 rsr-ds-group-dev-f193,serviceAccount,svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com,roles/run.admin,
 rsr-ds-group-dev-f193,serviceAccount,svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com,roles/iam.serviceAccountUser,
+rsr-ds-group-dev-f193,serviceAccount,svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com,roles/storage.objectViewer,
 rsr-ds-group-prd-83ad,serviceAccount,svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com,roles/artifactregistry.writer,
 rsr-ds-group-prd-83ad,serviceAccount,svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com,roles/run.admin,
 rsr-ds-group-prd-83ad,serviceAccount,svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com,roles/iam.serviceAccountUser,

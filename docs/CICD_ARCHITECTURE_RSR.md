@@ -202,6 +202,7 @@ list.
 | DEV | `roles/artifactregistry.reader` | Read images (for prod copy step) |
 | DEV | `roles/run.admin` | Deploy to dev Cloud Run |
 | DEV | `roles/iam.serviceAccountUser` | Set runtime SA on deploy |
+| DEV | `roles/storage.objectViewer` | Read GCS buckets (build-time data, test fixtures) |
 | PRD | `roles/artifactregistry.writer` | Copy images to prod AR |
 | PRD | `roles/run.admin` | Deploy to prod Cloud Run |
 | PRD | `roles/iam.serviceAccountUser` | Set runtime SA on deploy |
