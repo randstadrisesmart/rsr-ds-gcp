@@ -33,6 +33,15 @@ rsr-ds-{service}/
 └── start.sh                  # (if needed) container entrypoint
 ```
 
+> **Restructure your project to match this layout.** The CI pipeline
+> hardcodes `--cov=src` for test coverage, so your application modules
+> **must** be in `src/`. If your existing code uses a different directory
+> (e.g. `helpers/`, `lib/`), rename it to `src/` and update all imports.
+> Move any files not needed at runtime (training scripts, notebooks,
+> exploration code, old models, credential files) into `archive/`.
+> Delete any service account key files (`*.json` with `private_key`) —
+> they must not be committed.
+
 ### 1.1 Service requirements
 
 - App must listen on **port 8080**
