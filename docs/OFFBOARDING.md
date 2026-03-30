@@ -90,7 +90,7 @@ Terraform will destroy:
 
 ## 4. Request IAM Cleanup from Infra Team
 
-The 8 cross-project IAM bindings for the build SA were created by the infra
+The 9 cross-project IAM bindings for the build SA were created by the infra
 team (not Terraform). Submit a ticket to remove them:
 
 **Service account:** `svc-build-{service}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com`
@@ -100,6 +100,7 @@ team (not Terraform). Submit a ticket to remove them:
 - `roles/artifactregistry.reader`
 - `roles/run.admin`
 - `roles/iam.serviceAccountUser`
+- `roles/storage.objectViewer`
 
 **PRD (`rsr-ds-group-prd-83ad`) — remove:**
 - `roles/artifactregistry.writer`
