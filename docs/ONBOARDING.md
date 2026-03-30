@@ -21,8 +21,9 @@ rsr-ds-{service}/
 ├── src/                      # Python modules referenced by main.py
 │   ├── module_a.py
 │   └── module_b.py
-├── tests/
+├── tests/                    # unit tests — run by CI in a bare python:3.11 container
 │   └── test_*.py             # pytest discovers these automatically
+├── integration_tests/        # integration tests — run locally by developers (not CI)
 ├── archive/                  # anything not needed for deployment
 ├── Dockerfile                # builds the deployable image
 ├── .dockerignore
@@ -41,6 +42,19 @@ rsr-ds-{service}/
 > exploration code, old models, credential files) into `archive/`.
 > Delete any service account key files (`*.json` with `private_key`) —
 > they must not be committed.
+
+**Unit tests vs integration tests:** The CI test step runs `pytest tests/`
+in a bare `python:3.11` container — not your Docker image. Tests in
+`tests/` must work without the full runtime environment (no NLTK data,
+no spaCy models, no GCS model downloads, etc.). Use mocks for anything
+that needs the real environment.
+
+Tests that need the full runtime — loading real models, calling real NLP
+pipelines, hitting real GCS buckets — belong in `integration_tests/`.
+These are **not run by CI**. Developers run them locally during
+development, either against local code (with the full environment set
+up) or against the deployed DEV service URL. The DEV environment is the
+integration test environment.
 
 ### 1.1 Service requirements
 
@@ -278,6 +292,7 @@ __pycache__
 .ruff_cache/
 .env
 tests/
+integration_tests/
 deploy/
 archive/
 ```
