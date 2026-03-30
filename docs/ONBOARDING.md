@@ -75,12 +75,19 @@ integration test environment.
 - No file larger than **10 MB** in the repo — large data files should be
   uploaded to a GCS bucket and downloaded at startup (see 1.2)
 
-### 1.2 Large files
+### 1.2 GCS data and large files
 
-If your service has data files over 10 MB (models, geojson, reference data),
-upload them to a GCS bucket instead of committing them to git. The shared
-bucket `location_object` in DEV is used for this — both the DEV and PRD
-build SAs have read access to it.
+**Any data your service needs at runtime (models, reference data, geojson,
+etc.) must be baked into the Docker image at build time.** Services must
+not download from GCS at runtime — the PRD runtime SA does not have access
+to DEV buckets, and runtime downloads add cold-start latency. Use the
+`_GCS_BUCKET` and `_GCS_DIRECTORIES` substitutions in your build yaml to
+download data during the CI build step, then load from the local filesystem
+at runtime (see below).
+
+Files over 10 MB should not be committed to git. Upload them to a GCS
+bucket instead. The shared bucket `location_object` in DEV is used for
+this — both the DEV and PRD build SAs have read access to it.
 
 #### Uploading to GCS
 
@@ -116,26 +123,18 @@ _GCS_DIRECTORIES: 'geojsonMaps models reference_data'
 The data is baked into the DEV image at build time. The prod pipeline copies
 that same image — no re-download needed.
 
-If your service also has an `init()` function that downloads from GCS at
-runtime, guard it so it skips when the data already exists (from the build):
+Your application code should load from the local filesystem, not from GCS:
 
 ```python
-def download_blob(bucket_name, file_dir, local_file_dir):
-    """Download all blobs with a given prefix from GCS. Skips if already exists."""
-    if os.path.isdir(local_file_dir) and os.listdir(local_file_dir):
-        print(f"Skipping {local_file_dir} (already exists)")
-        return
-    from google.cloud import storage
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=file_dir)
-    for blob in blobs:
-        local_path = os.path.join(local_file_dir, os.path.relpath(blob.name, file_dir))
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        blob.download_to_filename(local_path)
+# Good — load from local path (baked into image at build time)
+with open('model/my_model.sav', 'rb') as f:
+    model = pickle.load(f)
+
+# Bad — downloads from GCS at runtime (won't work in PRD)
+model = download_from_gcs('my-bucket', 'model/my_model.sav')
 ```
 
-Add the file paths to `.gitignore` so they aren't committed.
+Add the GCS data paths to `.gitignore` so they aren't committed.
 
 ### 1.3 Secrets
 
