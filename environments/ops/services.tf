@@ -88,6 +88,11 @@ locals {
         { dataset_name = "webscrapers", table_name = "brandwatch_company_reviews", sync_frequency = "daily", region = "us-east1" },
       ]
     }
+    temporary-classifier = {
+      repo        = "rsr-ds-temporary-classifier"
+      build_group = "analysis"
+      sync_tables = []
+    }
     dynamic-insights = {
       repo        = "rsr-ds-dynamic-insights"
       build_group = "talent"
