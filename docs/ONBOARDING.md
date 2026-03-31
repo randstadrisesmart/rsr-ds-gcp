@@ -195,10 +195,30 @@ Cloud Build's `--secret-env` or `secretEnv` syntax.
 
 #### Runtime secrets
 
-If a secret is needed while the app is running, fetch it via the Secret
-Manager API at startup. The runtime SAs (`svc-ai-platform@dev` and
-`svc-ai-platform@prd`) already have project-level `secretmanager.secretAccessor`
-on OPS, so no additional IAM is needed — just create the secret and fetch it.
+If a secret is needed while the app is running, there are two options:
+
+**Option A — `_RUNTIME_SECRETS` substitution (recommended):**
+
+Set the `_RUNTIME_SECRETS` substitution in `dev-build.yaml` and
+`prod-build.yaml`. Cloud Run mounts the secrets automatically at deploy
+time — no code changes or extra dependencies needed.
+
+```yaml
+_RUNTIME_SECRETS: 'ES_API_KEY=es-api-key:latest,/app/secrets/hash/hashstore.json=hashstore-json:latest'
+```
+
+The format is a comma-separated list of `TARGET=SECRET_NAME:VERSION`:
+- **Environment variable:** `ES_API_KEY=es-api-key:latest` — mounts as
+  env var `ES_API_KEY`, read with `os.environ["ES_API_KEY"]`
+- **File mount:** `/app/secrets/hash/hashstore.json=hashstore-json:latest`
+  — mounts as a file at that path, read with `open()`
+
+**Option B — Secret Manager API:**
+
+Fetch secrets in your application code at startup. The runtime SAs
+(`svc-ai-platform@dev` and `svc-ai-platform@prd`) already have
+project-level `secretmanager.secretAccessor` on OPS, so no additional
+IAM is needed — just create the secret and fetch it.
 
 ```python
 from google.cloud import secretmanager
@@ -214,8 +234,9 @@ ES_API_KEY = get_secret("es-api-key")
 
 Add `google-cloud-secret-manager` to `requirements.txt`.
 
-No changes to deploy yamls are needed — the app fetches secrets directly.
-The next cold start automatically picks up any updated secret values.
+Both options use the same OPS secrets. Option A is simpler (no code, no
+dependency) and the secret value is available immediately. Option B is
+useful if you need to refresh secrets without redeploying.
 
 ### 1.4 CODEOWNERS
 
