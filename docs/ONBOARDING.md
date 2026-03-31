@@ -660,7 +660,10 @@ Go to **Settings → Rules → Rulesets → New ruleset → New Branch ruleset**
   - **Require approvals:** 1 (or your team's preference)
   - **Require review from Code Owners:** Yes
 - **Require status checks to pass:** Yes
-  - Click **"Add checks"**, search for `{service}-pr` and select it
+  - Click **"Add checks"**, search for `{service}-pr` and select the
+    entry that includes the project ID:
+    `{service}-pr (rsr-ds-group-ops-d0b0)`. Cloud Build appends the
+    project ID to the check name — the short name won't match.
 
 Save the ruleset.
 
