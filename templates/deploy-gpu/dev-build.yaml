@@ -17,7 +17,7 @@ substitutions:
   _STARTUP_PROBE_THRESHOLD: '30'       # failureThreshold — increase for slow startup (e.g. 180 = 30 min)
   # ── GCS data ——                     # to download files > 10GB during build. leave empty if none.
   _GCS_BUCKET: ''                      # e.g. location_object
-  _GCS_DIRECTORIES: ''                 # space-separated dirs (e.g. 'models geojsonMaps data')
+  _GCS_DIRECTORIES: ''                 # comma-separated dirs (e.g. 'models,geojsonMaps,data')
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
 
@@ -93,9 +93,9 @@ steps:
           echo "No GCS data to download, skipping."
           exit 0
         fi
-        for dir in ${_GCS_DIRECTORIES}; do
-          echo "Downloading gs://${_GCS_BUCKET}/$dir ..."
-          gcloud storage cp -r "gs://${_GCS_BUCKET}/$dir" "."
+        echo "${_GCS_DIRECTORIES}" | tr ',' '\n' | while read -r dir; do
+          echo "Downloading gs://${_GCS_BUCKET}/$$dir ..."
+          gcloud storage cp -r "gs://${_GCS_BUCKET}/$$dir" "."
         done
     waitFor: ['-']
 

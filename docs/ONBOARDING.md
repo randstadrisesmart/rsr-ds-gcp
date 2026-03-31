@@ -117,7 +117,7 @@ GCS and bakes them into the Docker image. Set the `_GCS_BUCKET` and
 
 ```yaml
 _GCS_BUCKET: location_object
-_GCS_DIRECTORIES: 'geojsonMaps models reference_data'
+_GCS_DIRECTORIES: 'geojsonMaps,models,reference_data'
 ```
 
 The data is baked into the DEV image at build time. The prod pipeline copies
@@ -264,7 +264,7 @@ Open each file and review the substitutions at the top:
 | `_TIMEOUT` | `300` | If startup takes more than 5 min (e.g. `1800` = 30 min) |
 | `_STARTUP_PROBE_THRESHOLD` | `30` | Startup probe failure threshold (× 10s). Increase for slow startup (e.g. `180` = 30 min) |
 | `_GCS_BUCKET` | `''` | GCS bucket for large data files (see §1.2). Leave empty if none |
-| `_GCS_DIRECTORIES` | `''` | Space-separated dirs to download from bucket (e.g. `'models geojsonMaps data'`) |
+| `_GCS_DIRECTORIES` | `''` | Comma-separated dirs to download from bucket (e.g. `'models,geojsonMaps,data'`) |
 
 **Cloud Run memory/CPU limits:**
 
