@@ -18,7 +18,7 @@ substitutions:
   _GCS_BUCKET: ''                      # e.g. location_object
   _GCS_DIRECTORIES: ''                 # comma-separated dirs (e.g. 'models,geojsonMaps,data')
   # ── Runtime secrets ──              # leave empty if none
-  _RUNTIME_SECRETS: ''                 # e.g. 'ES_API_KEY=projects/rsr-ds-group-ops-d0b0/secrets/es-api-key:latest'
+  _RUNTIME_SECRETS: ''                 # e.g. 'ES_API_KEY=es-api-key:latest'
   # ── Do not change ──
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev

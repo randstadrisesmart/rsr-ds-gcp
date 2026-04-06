@@ -204,17 +204,19 @@ Set the `_RUNTIME_SECRETS` substitution in `dev-build.yaml` and
 time — no code changes or extra dependencies needed.
 
 ```yaml
-_RUNTIME_SECRETS: 'ES_API_KEY=projects/rsr-ds-group-ops-d0b0/secrets/es-api-key:latest,/app/secrets/hash/hashstore.json=projects/rsr-ds-group-ops-d0b0/secrets/hashstore-json:latest'
+_RUNTIME_SECRETS: 'ES_API_KEY=es-api-key:latest,/app/secrets/hash/hashstore.json=hashstore-json:latest'
 ```
 
-**Important:** Always use the full OPS path (`projects/rsr-ds-group-ops-d0b0/secrets/SECRET_NAME:latest`).
-Short names (e.g. `es-api-key:latest`) resolve to the service's own project,
-not OPS — the deploy will fail if the secret doesn't exist there.
+**Important:** Cloud Run's `--update-secrets` resolves secret names from the
+**service's own project** (DEV or PRD), not OPS. Runtime secrets used with
+`_RUNTIME_SECRETS` must be created in **both DEV and PRD** Secret Manager.
+This is a Cloud Run limitation — it does not support cross-project secret
+references. (For reading secrets from OPS in code, use Option B below.)
 
-The format is a comma-separated list of `TARGET=SECRET_PATH`:
-- **Environment variable:** `ES_API_KEY=projects/rsr-ds-group-ops-d0b0/secrets/es-api-key:latest`
-  — mounts as env var `ES_API_KEY`, read with `os.environ["ES_API_KEY"]`
-- **File mount:** `/app/secrets/hash/hashstore.json=projects/rsr-ds-group-ops-d0b0/secrets/hashstore-json:latest`
+The format is a comma-separated list of `TARGET=SECRET_NAME:VERSION`:
+- **Environment variable:** `ES_API_KEY=es-api-key:latest` — mounts as
+  env var `ES_API_KEY`, read with `os.environ["ES_API_KEY"]`
+- **File mount:** `/app/secrets/hash/hashstore.json=hashstore-json:latest`
   — mounts as a file at that path, read with `open()`
 
 **Option B — Secret Manager API:**
