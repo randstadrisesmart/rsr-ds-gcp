@@ -68,7 +68,29 @@ Tips:
 - Keep commits focused on one change
 - Write commit messages that explain *why*, not just *what*
 
-### 4. Push your branch
+### 4. Pre-flight: lint, test, and scan locally
+
+CI will reject your PR if any of these fail. Run them before pushing to
+save a round-trip:
+
+```bash
+# Lint
+ruff check . --exclude archive/
+
+# Test
+pytest tests/ -v
+
+# Scan for hardcoded secrets (API keys, passwords, tokens)
+detect-secrets scan --all-files .
+
+# Check for files over 10 MB (should not be committed — upload to GCS instead)
+python3 -c "import os; [print(f'{os.path.getsize(os.path.join(r,f))/1e6:.1f}MB {os.path.join(r,f)}') for r,d,fs in os.walk('.') for f in fs if os.path.getsize(os.path.join(r,f))>10_000_000 and '.git' not in r]"
+```
+
+If `detect-secrets` flags false positives (e.g. the word "secret" in a
+variable name), update your `.secrets.baseline` file — see `ONBOARDING.md` §1.10.
+
+### 5. Push your branch
 
 ```bash
 # First push: -u sets up tracking so future pushes just need 'git push'
@@ -80,9 +102,20 @@ git push
 
 ### 5. Open a Pull Request
 
+**Option A — from the CLI:**
+
+```bash
+gh pr create --title "Add response caching for taxonomy lookups" \
+  --body "What: Added caching layer for taxonomy API responses.
+Why: Reduces redundant lookups and improves response times."
+```
+
+**Option B — from the GitHub UI:**
+
 Go to GitHub — you'll see a banner to create a PR. Click it, or go to:
 https://github.com/randstadrisesmart/rsr-ds-{service}/pull/new/feature-{service}-add-caching
 
+Fill in:
 - **Title:** Short description of the change
 - **Description:** What changed and why, any testing notes
 - **Reviewers:** Add your team members

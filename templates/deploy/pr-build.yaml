@@ -11,7 +11,7 @@ steps:
     args:
       - '-c'
       - |
-        pip install -r requirements.txt -r requirements-test.txt
+        pip install -r requirements.txt -r requirements-test.txt &&
         pytest tests/ --cov=src --cov-report=term-missing
     waitFor: ['-']
 
@@ -36,7 +36,7 @@ steps:
         pip install detect-secrets
         BASELINE_FLAG=""
         if [ -f .secrets.baseline ]; then BASELINE_FLAG="--baseline .secrets.baseline"; fi
-        OUTPUT=$(detect-secrets scan --all-files $$BASELINE_FLAG $(git ls-files))
+        OUTPUT=$(detect-secrets scan --all-files --exclude-files '.secrets.baseline' $$BASELINE_FLAG $(git ls-files))
         if [ -z "$$OUTPUT" ]; then echo "No new secrets detected."; exit 0; fi
         echo "$$OUTPUT" | python3 -c "
         import json,sys; r=json.load(sys.stdin)

@@ -18,7 +18,7 @@ substitutions:
   _GCS_BUCKET: ''                      # e.g. location_object
   _GCS_DIRECTORIES: ''                 # comma-separated dirs (e.g. 'models,geojsonMaps,data')
   # ── Runtime secrets ──              # leave empty if none
-  _RUNTIME_SECRETS: ''                 # e.g. 'ES_API_KEY=es-api-key:latest,/app/secrets/hash/hashstore.json=hashstore-json:latest'
+  _RUNTIME_SECRETS: ''                 # e.g. 'ES_API_KEY=projects/rsr-ds-group-ops-d0b0/secrets/es-api-key:latest'
   # ── Do not change ──
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
@@ -31,7 +31,7 @@ steps:
     args:
       - '-c'
       - |
-        pip install -r requirements.txt -r requirements-test.txt
+        pip install -r requirements.txt -r requirements-test.txt &&
         pytest tests/ --cov=src --cov-report=term-missing
 
   # ─── LINT ───────────────────────────────────────────────
@@ -54,7 +54,7 @@ steps:
         pip install detect-secrets
         BASELINE_FLAG=""
         if [ -f .secrets.baseline ]; then BASELINE_FLAG="--baseline .secrets.baseline"; fi
-        OUTPUT=$(detect-secrets scan --all-files $$BASELINE_FLAG $(git ls-files))
+        OUTPUT=$(detect-secrets scan --all-files --exclude-files '.secrets.baseline' $$BASELINE_FLAG $(git ls-files))
         if [ -z "$$OUTPUT" ]; then echo "No new secrets detected."; exit 0; fi
         echo "$$OUTPUT" | python3 -c "
         import json,sys; r=json.load(sys.stdin)
