@@ -120,21 +120,29 @@ _GCS_BUCKET: location_object
 _GCS_DIRECTORIES: 'geojsonMaps,models,reference_data'
 ```
 
-The data is baked into the DEV image at build time. The prod pipeline copies
-that same image — no re-download needed.
+The data is downloaded into the build workspace, then baked into the DEV
+image via `docker build`. The prod pipeline copies that same image — no
+re-download needed.
+
+**Put downloaded data in a `data/` directory.** The `download-gcs-data`
+step downloads directories into the build workspace root by default. To
+keep the workspace clean, structure your service so that all downloaded
+data lives under `data/` and your application code references paths
+relative to that directory (e.g. `data/models/my_model.sav`). Add
+`data/` to `.gitignore` so it isn't committed.
 
 Your application code should load from the local filesystem, not from GCS:
 
 ```python
 # Good — load from local path (baked into image at build time)
-with open('model/my_model.sav', 'rb') as f:
+with open('data/models/my_model.sav', 'rb') as f:
     model = pickle.load(f)
 
 # Bad — downloads from GCS at runtime (won't work in PRD)
-model = download_from_gcs('my-bucket', 'model/my_model.sav')
+model = download_from_gcs('my-bucket', 'models/my_model.sav')
 ```
 
-Add the GCS data paths to `.gitignore` so they aren't committed.
+Add `data/` to `.gitignore` so downloaded files aren't committed.
 
 ### 1.3 Secrets
 
@@ -347,6 +355,25 @@ python3 -c "import os; [print(f'{os.path.getsize(os.path.join(r,f))/1e6:.1f}MB {
 If `detect-secrets` finds anything, move those values to Secret Manager
 (see 1.3). If the file size check finds anything, upload the file to GCS
 and download it at startup instead of committing it (see 1.2).
+
+#### False positives in secret scanning
+
+`detect-secrets` sometimes flags non-secret strings (e.g. base64-encoded
+image data in Jupyter notebooks, taxonomy hint files containing the word
+"secret"). If you've confirmed a finding is a false positive, create a
+baseline file so CI skips it on future builds:
+
+```bash
+# Generate a baseline from all tracked files
+detect-secrets scan --all-files $(git ls-files) > .secrets.baseline
+
+# Commit the baseline
+git add .secrets.baseline
+git commit -m "Add secrets baseline for false positives"
+```
+
+The CI `scan-secrets` step automatically uses `.secrets.baseline` if it
+exists — only new secrets not already in the baseline will fail the build.
 
 ---
 
