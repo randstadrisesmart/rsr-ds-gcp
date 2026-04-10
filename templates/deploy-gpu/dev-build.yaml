@@ -177,6 +177,6 @@ steps:
       - '--message={"service":"${_SERVICE_NAME}","status":"success","commit":"${COMMIT_SHA}","env":"dev"}'
     waitFor: ['enable-iap']
 
-timeout: 2400s
+timeout: 14400s
 options:
   logging: CLOUD_LOGGING_ONLY
