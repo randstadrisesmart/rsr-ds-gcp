@@ -198,8 +198,24 @@ build_secrets = ["hf-token"]
 ```
 
 Terraform grants `secretmanager.secretAccessor` on each listed secret to
-the group's build SA. Then reference the secret in your build yaml using
-Cloud Build's `--secret-env` or `secretEnv` syntax.
+the group's build SA. Then set the `_BUILD_SECRETS` substitution in your
+`dev-build.yaml`:
+
+```yaml
+_BUILD_SECRETS: 'HF_TOKEN=hf-token:latest'
+```
+
+The format is a comma-separated list of `ENV_NAME=secret-id:version`.
+The `fetch-build-secrets` step fetches each secret from OPS Secret Manager
+and passes it to `docker build` as a `--build-arg`. Your Dockerfile must
+accept the arg and clear it after use:
+
+```dockerfile
+ARG HF_TOKEN
+ENV HF_TOKEN=${HF_TOKEN}
+RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('Qwen/Qwen3-Embedding-4B')"
+ENV HF_TOKEN=
+```
 
 #### Runtime secrets
 
@@ -279,6 +295,8 @@ Open each file and review the substitutions at the top:
 | `_STARTUP_PROBE_THRESHOLD` | `30` | Startup probe failure threshold (× 10s). Increase for slow startup (e.g. `180` = 30 min) |
 | `_GCS_BUCKET` | `''` | GCS bucket for large data files (see §1.2). Leave empty if none |
 | `_GCS_DIRECTORIES` | `''` | Comma-separated dirs to download from bucket (e.g. `'models,geojsonMaps,data'`) |
+| `_BUILD_SECRETS` | `''` | OPS secrets needed during `docker build` (e.g. `'HF_TOKEN=hf-token:latest'`). See §1.3 |
+| `_RUNTIME_SECRETS` | `''` | Secrets mounted at runtime (e.g. `'ES_API_KEY=es-api-key:latest'`). See §1.3 |
 
 **Cloud Run memory/CPU limits:**
 

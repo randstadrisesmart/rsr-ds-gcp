@@ -17,6 +17,8 @@ substitutions:
   # ── GCS data ——                     # to download files > 10GB during build. leave empty if none.
   _GCS_BUCKET: ''                      # e.g. location_object
   _GCS_DIRECTORIES: ''                 # comma-separated dirs (e.g. 'models,geojsonMaps,data')
+  # ── Build secrets ──                # OPS secrets needed during docker build. leave empty if none.
+  _BUILD_SECRETS: ''                   # e.g. 'HF_TOKEN=hf-token:latest'
   # ── Runtime secrets ──              # leave empty if none
   _RUNTIME_SECRETS: ''                 # e.g. 'ES_API_KEY=es-api-key:latest'
   # ── Do not change ──
@@ -101,17 +103,46 @@ steps:
         done
     waitFor: ['-']
 
+  # ─── FETCH BUILD SECRETS ────────────────────────────────
+  - id: 'fetch-build-secrets'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        touch /workspace/.build-secret-args
+        if [ -z "${_BUILD_SECRETS}" ]; then
+          echo "No build secrets to fetch, skipping."
+          exit 0
+        fi
+        echo "${_BUILD_SECRETS}" | tr ',' '\n' | while read -r entry; do
+          ENV_NAME=$${entry%%=*}
+          SECRET_REF=$${entry#*=}
+          SECRET_ID=$${SECRET_REF%%:*}
+          VERSION=$${SECRET_REF#*:}
+          echo "Fetching secret $$SECRET_ID (version: $$VERSION) → $$ENV_NAME"
+          VALUE=$$(gcloud secrets versions access "$$VERSION" --secret="$$SECRET_ID" --project=rsr-ds-group-ops-d0b0)
+          printf '%s=%s\n' "$$ENV_NAME" "$$VALUE" >> /workspace/.build-secret-args
+        done
+    waitFor: ['-']
+
   # ─── BUILD ──────────────────────────────────────────────
   - id: 'build'
     name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
     args:
-      - 'build'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA}'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:latest'
-      - '.'
-    waitFor: ['test', 'lint', 'scan-secrets', 'check-file-sizes', 'download-gcs-data']
+      - '-c'
+      - |
+        BUILD_SECRET_ARGS=""
+        while IFS='=' read -r key value; do
+          BUILD_SECRET_ARGS="$$BUILD_SECRET_ARGS --build-arg $$key=$$value"
+        done < /workspace/.build-secret-args
+        docker build \
+          $$BUILD_SECRET_ARGS \
+          -t ${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:${COMMIT_SHA} \
+          -t ${_REGION}-docker.pkg.dev/${_PROJECT_DEV}/docker-images/${_SERVICE_NAME}:latest \
+          .
+    waitFor: ['test', 'lint', 'scan-secrets', 'check-file-sizes', 'download-gcs-data', 'fetch-build-secrets']
 
   # ─── PUSH ──────────────────────────────────────────────
   - id: 'push'
