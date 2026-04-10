@@ -11,6 +11,7 @@
 substitutions:
   _SERVICE_NAME: CHANGE_ME             # e.g. ollama
   _REGION: europe-west1                # GPU L4 availability — check region support
+  _TIMEOUT: '600'                     # must match dev-build.yaml
   _STARTUP_PROBE_THRESHOLD: '30'      # must match dev-build.yaml
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _PROJECT_PRD: rsr-ds-group-prd-83ad
@@ -57,7 +58,7 @@ steps:
       - '--gpu-type=nvidia-l4'
       - '--memory=32Gi'
       - '--cpu=8'
-      - '--timeout=600'
+      - '--timeout=${_TIMEOUT}'
       - '--concurrency=40'
       - '--min-instances=0'
       - '--max-instances=1'
@@ -95,5 +96,6 @@ steps:
       - '--message={"service":"${_SERVICE_NAME}","status":"success","commit":"${COMMIT_SHA}","env":"prd"}'
     waitFor: ['enable-iap']
 
+timeout: 14400s
 options:
   logging: CLOUD_LOGGING_ONLY

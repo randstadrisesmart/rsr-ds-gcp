@@ -21,8 +21,9 @@ rsr-ds-{service}/
 ├── src/                      # Python modules referenced by main.py
 │   ├── module_a.py
 │   └── module_b.py
-├── tests/
+├── tests/                    # unit tests — run by CI in a bare python:3.11 container
 │   └── test_*.py             # pytest discovers these automatically
+├── integration_tests/        # integration tests — run locally by developers (not CI)
 ├── archive/                  # anything not needed for deployment
 ├── Dockerfile                # builds the deployable image
 ├── .dockerignore
@@ -41,6 +42,19 @@ rsr-ds-{service}/
 > exploration code, old models, credential files) into `archive/`.
 > Delete any service account key files (`*.json` with `private_key`) —
 > they must not be committed.
+
+**Unit tests vs integration tests:** The CI test step runs `pytest tests/`
+in a bare `python:3.11` container — not your Docker image. Tests in
+`tests/` must work without the full runtime environment (no NLTK data,
+no spaCy models, no GCS model downloads, etc.). Use mocks for anything
+that needs the real environment.
+
+Tests that need the full runtime — loading real models, calling real NLP
+pipelines, hitting real GCS buckets — belong in `integration_tests/`.
+These are **not run by CI**. Developers run them locally during
+development, either against local code (with the full environment set
+up) or against the deployed DEV service URL. The DEV environment is the
+integration test environment.
 
 ### 1.1 Service requirements
 
@@ -61,12 +75,19 @@ rsr-ds-{service}/
 - No file larger than **10 MB** in the repo — large data files should be
   uploaded to a GCS bucket and downloaded at startup (see 1.2)
 
-### 1.2 Large files
+### 1.2 GCS data and large files
 
-If your service has data files over 10 MB (models, geojson, reference data),
-upload them to a GCS bucket instead of committing them to git. The shared
-bucket `location_object` in DEV is used for this — both the DEV and PRD
-build SAs have read access to it.
+**Any data your service needs at runtime (models, reference data, geojson,
+etc.) must be baked into the Docker image at build time.** Services must
+not download from GCS at runtime — the PRD runtime SA does not have access
+to DEV buckets, and runtime downloads add cold-start latency. Use the
+`_GCS_BUCKET` and `_GCS_DIRECTORIES` substitutions in your build yaml to
+download data during the CI build step, then load from the local filesystem
+at runtime (see below).
+
+Files over 10 MB should not be committed to git. Upload them to a GCS
+bucket instead. The shared bucket `location_object` in DEV is used for
+this — both the DEV and PRD build SAs have read access to it.
 
 #### Uploading to GCS
 
@@ -96,32 +117,32 @@ GCS and bakes them into the Docker image. Set the `_GCS_BUCKET` and
 
 ```yaml
 _GCS_BUCKET: location_object
-_GCS_DIRECTORIES: 'geojsonMaps models reference_data'
+_GCS_DIRECTORIES: 'geojsonMaps,models,reference_data'
 ```
 
-The data is baked into the DEV image at build time. The prod pipeline copies
-that same image — no re-download needed.
+The data is downloaded into the build workspace, then baked into the DEV
+image via `docker build`. The prod pipeline copies that same image — no
+re-download needed.
 
-If your service also has an `init()` function that downloads from GCS at
-runtime, guard it so it skips when the data already exists (from the build):
+**Put downloaded data in a `data/` directory.** The `download-gcs-data`
+step downloads directories into the build workspace root by default. To
+keep the workspace clean, structure your service so that all downloaded
+data lives under `data/` and your application code references paths
+relative to that directory (e.g. `data/models/my_model.sav`). Add
+`data/` to `.gitignore` so it isn't committed.
+
+Your application code should load from the local filesystem, not from GCS:
 
 ```python
-def download_blob(bucket_name, file_dir, local_file_dir):
-    """Download all blobs with a given prefix from GCS. Skips if already exists."""
-    if os.path.isdir(local_file_dir) and os.listdir(local_file_dir):
-        print(f"Skipping {local_file_dir} (already exists)")
-        return
-    from google.cloud import storage
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=file_dir)
-    for blob in blobs:
-        local_path = os.path.join(local_file_dir, os.path.relpath(blob.name, file_dir))
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        blob.download_to_filename(local_path)
+# Good — load from local path (baked into image at build time)
+with open('data/models/my_model.sav', 'rb') as f:
+    model = pickle.load(f)
+
+# Bad — downloads from GCS at runtime (won't work in PRD)
+model = download_from_gcs('my-bucket', 'models/my_model.sav')
 ```
 
-Add the file paths to `.gitignore` so they aren't committed.
+Add `data/` to `.gitignore` so downloaded files aren't committed.
 
 ### 1.3 Secrets
 
@@ -182,10 +203,36 @@ Cloud Build's `--secret-env` or `secretEnv` syntax.
 
 #### Runtime secrets
 
-If a secret is needed while the app is running, fetch it via the Secret
-Manager API at startup. The runtime SAs (`svc-ai-platform@dev` and
-`svc-ai-platform@prd`) already have project-level `secretmanager.secretAccessor`
-on OPS, so no additional IAM is needed — just create the secret and fetch it.
+If a secret is needed while the app is running, there are two options:
+
+**Option A — `_RUNTIME_SECRETS` substitution (recommended):**
+
+Set the `_RUNTIME_SECRETS` substitution in `dev-build.yaml` and
+`prod-build.yaml`. Cloud Run mounts the secrets automatically at deploy
+time — no code changes or extra dependencies needed.
+
+```yaml
+_RUNTIME_SECRETS: 'ES_API_KEY=es-api-key:latest,/app/secrets/hash/hashstore.json=hashstore-json:latest'
+```
+
+**Important:** Cloud Run's `--update-secrets` resolves secret names from the
+**service's own project** (DEV or PRD), not OPS. Runtime secrets used with
+`_RUNTIME_SECRETS` must be created in **both DEV and PRD** Secret Manager.
+This is a Cloud Run limitation — it does not support cross-project secret
+references. (For reading secrets from OPS in code, use Option B below.)
+
+The format is a comma-separated list of `TARGET=SECRET_NAME:VERSION`:
+- **Environment variable:** `ES_API_KEY=es-api-key:latest` — mounts as
+  env var `ES_API_KEY`, read with `os.environ["ES_API_KEY"]`
+- **File mount:** `/app/secrets/hash/hashstore.json=hashstore-json:latest`
+  — mounts as a file at that path, read with `open()`
+
+**Option B — Secret Manager API:**
+
+Fetch secrets in your application code at startup. The runtime SAs
+(`svc-ai-platform@dev` and `svc-ai-platform@prd`) already have
+project-level `secretmanager.secretAccessor` on OPS, so no additional
+IAM is needed — just create the secret and fetch it.
 
 ```python
 from google.cloud import secretmanager
@@ -201,8 +248,9 @@ ES_API_KEY = get_secret("es-api-key")
 
 Add `google-cloud-secret-manager` to `requirements.txt`.
 
-No changes to deploy yamls are needed — the app fetches secrets directly.
-The next cold start automatically picks up any updated secret values.
+Both options use the same OPS secrets. Option A is simpler (no code, no
+dependency) and the secret value is available immediately. Option B is
+useful if you need to refresh secrets without redeploying.
 
 ### 1.4 CODEOWNERS
 
@@ -230,7 +278,7 @@ Open each file and review the substitutions at the top:
 | `_TIMEOUT` | `300` | If startup takes more than 5 min (e.g. `1800` = 30 min) |
 | `_STARTUP_PROBE_THRESHOLD` | `30` | Startup probe failure threshold (× 10s). Increase for slow startup (e.g. `180` = 30 min) |
 | `_GCS_BUCKET` | `''` | GCS bucket for large data files (see §1.2). Leave empty if none |
-| `_GCS_DIRECTORIES` | `''` | Space-separated dirs to download from bucket (e.g. `'models geojsonMaps data'`) |
+| `_GCS_DIRECTORIES` | `''` | Comma-separated dirs to download from bucket (e.g. `'models,geojsonMaps,data'`) |
 
 **Cloud Run memory/CPU limits:**
 
@@ -278,6 +326,7 @@ __pycache__
 .ruff_cache/
 .env
 tests/
+integration_tests/
 deploy/
 archive/
 ```
@@ -306,6 +355,25 @@ python3 -c "import os; [print(f'{os.path.getsize(os.path.join(r,f))/1e6:.1f}MB {
 If `detect-secrets` finds anything, move those values to Secret Manager
 (see 1.3). If the file size check finds anything, upload the file to GCS
 and download it at startup instead of committing it (see 1.2).
+
+#### False positives in secret scanning
+
+`detect-secrets` sometimes flags non-secret strings (e.g. base64-encoded
+image data in Jupyter notebooks, taxonomy hint files containing the word
+"secret"). If you've confirmed a finding is a false positive, create a
+baseline file so CI skips it on future builds:
+
+```bash
+# Generate a baseline from all tracked files
+detect-secrets scan --all-files $(git ls-files) > .secrets.baseline
+
+# Commit the baseline
+git add .secrets.baseline
+git commit -m "Add secrets baseline for false positives"
+```
+
+The CI `scan-secrets` step automatically uses `.secrets.baseline` if it
+exists — only new secrets not already in the baseline will fail the build.
 
 ---
 
@@ -646,7 +714,10 @@ Go to **Settings → Rules → Rulesets → New ruleset → New Branch ruleset**
   - **Require approvals:** 1 (or your team's preference)
   - **Require review from Code Owners:** Yes
 - **Require status checks to pass:** Yes
-  - Click **"Add checks"**, search for `{service}-pr` and select it
+  - Click **"Add checks"**, search for `{service}-pr` and select the
+    entry that includes the project ID:
+    `{service}-pr (rsr-ds-group-ops-d0b0)`. Cloud Build appends the
+    project ID to the check name — the short name won't match.
 
 Save the ruleset.
 

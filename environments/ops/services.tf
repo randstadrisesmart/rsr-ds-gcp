@@ -42,6 +42,7 @@ locals {
       repo        = "rsr-ds-ollama"
       build_group = "ollama"
       region      = "europe-west1"       # GPU (nvidia-l4) availability
+      build_secrets = ["hf-token"]
       sync_tables = []
     }
     cleanpii = {

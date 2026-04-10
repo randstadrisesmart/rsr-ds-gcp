@@ -14,10 +14,11 @@
 substitutions:
   _SERVICE_NAME: CHANGE_ME              # e.g. ollama
   _REGION: europe-west1                 # GPU L4 availability — check region support
+  _TIMEOUT: '600'                      # Cloud Run request timeout (seconds)
   _STARTUP_PROBE_THRESHOLD: '30'       # failureThreshold — increase for slow startup (e.g. 180 = 30 min)
   # ── GCS data ——                     # to download files > 10GB during build. leave empty if none.
   _GCS_BUCKET: ''                      # e.g. location_object
-  _GCS_DIRECTORIES: ''                 # space-separated dirs (e.g. 'models geojsonMaps data')
+  _GCS_DIRECTORIES: ''                 # comma-separated dirs (e.g. 'models,geojsonMaps,data')
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
 
@@ -52,7 +53,7 @@ steps:
         pip install detect-secrets
         BASELINE_FLAG=""
         if [ -f .secrets.baseline ]; then BASELINE_FLAG="--baseline .secrets.baseline"; fi
-        OUTPUT=$(detect-secrets scan --all-files $$BASELINE_FLAG $(git ls-files))
+        OUTPUT=$(detect-secrets scan --all-files --exclude-files '.secrets.baseline' $$BASELINE_FLAG $(git ls-files))
         if [ -z "$$OUTPUT" ]; then echo "No new secrets detected."; exit 0; fi
         echo "$$OUTPUT" | python3 -c "
         import json,sys; r=json.load(sys.stdin)
@@ -93,9 +94,9 @@ steps:
           echo "No GCS data to download, skipping."
           exit 0
         fi
-        for dir in ${_GCS_DIRECTORIES}; do
-          echo "Downloading gs://${_GCS_BUCKET}/$dir ..."
-          gcloud storage cp -r "gs://${_GCS_BUCKET}/$dir" "."
+        echo "${_GCS_DIRECTORIES}" | tr ',' '\n' | while read -r dir; do
+          echo "Downloading gs://${_GCS_BUCKET}/$$dir ..."
+          gcloud storage cp -r "gs://${_GCS_BUCKET}/$$dir" "."
         done
     waitFor: ['-']
 
@@ -138,7 +139,7 @@ steps:
       - '--gpu-type=nvidia-l4'
       - '--memory=32Gi'
       - '--cpu=8'
-      - '--timeout=600'
+      - '--timeout=${_TIMEOUT}'
       - '--concurrency=40'
       - '--min-instances=0'
       - '--max-instances=1'
@@ -176,5 +177,6 @@ steps:
       - '--message={"service":"${_SERVICE_NAME}","status":"success","commit":"${COMMIT_SHA}","env":"dev"}'
     waitFor: ['enable-iap']
 
+timeout: 14400s
 options:
   logging: CLOUD_LOGGING_ONLY
