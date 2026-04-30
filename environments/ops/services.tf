@@ -14,7 +14,7 @@
 #                   use sync_tables = [] if the service has no BQ tables
 #
 # Build groups:
-#   ollama   — LLM backed services (ollama, cleanpii, rascoeditorllm)
+#   ollama   — LLM backed services (ollama, cleanpii)
 #   talent   — Talent Radar (taxonomy, digitaltwin)
 #   analysis — Other analysis (sociallistening, qamonitoring, mrapipeline, etc.)
 #
@@ -51,30 +51,6 @@ locals {
       region        = "europe-west1"     # co-located with ollama for lower latency
       build_secrets = ["hf-token"]       # HuggingFace auth for model downloads
       sync_tables   = []
-    }
-    rascoeditorllm = {
-      repo        = "rsr-ds-rascoeditorllm"
-      build_group = "ollama"
-      region      = "europe-west1"       # GPU (nvidia-l4) availability
-      sync_tables = []
-    }
-    job-title-matcher = {
-      repo        = "rsr-ds-job-title-matcher"
-      build_group = "ollama"
-      region      = "europe-west1"       # co-located with rascoeditorllm
-      sync_tables = []
-    }
-    rasco-taxonomy-editor = {
-      repo        = "rsr-ds-rasco-taxonomy-editor"
-      build_group = "ollama"
-      iap         = true
-      sync_tables = [
-        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "rasco_taxonomy", sync_frequency = "daily", region = "us-east1" },
-        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "job_title_input", sync_frequency = "once", region = "us-east1" },
-        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "job_title_results", sync_frequency = "once", region = "us-east1" },
-        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "processing_jobs", sync_frequency = "once", region = "us-east1" },
-        { dataset_name = "rasco_taxonomy_fixes_US", table_name = "rasco_fixer_output_integration", sync_frequency = "once", region = "us-east1" },
-      ]
     }
     sociallistening = {
       repo          = "rsr-ds-sociallistening"
