@@ -12,7 +12,11 @@ variable "ops_project" {
 resource "google_service_account" "svc_ai_platform" {
   project      = var.project_id
   account_id   = "svc-ai-platform"
-  display_name = "AI Platform Service Account (${var.environment})"
+  display_name = "svc-ai-platform"
+
+  lifecycle {
+    ignore_changes = [description]
+  }
 }
 
 # ── Cloud Run ────────────────────────────────────────────────
@@ -51,14 +55,6 @@ resource "google_project_iam_member" "secrets_own" {
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_service_account.svc_ai_platform.email}"
-}
-
-# ── Cross-project BQ WRITE (PRD only) ───────────────────────
-resource "google_project_iam_member" "bq_cross_project_write" {
-  for_each = toset(var.environment == "prd" ? ["rs-us-talentml2-qa-0001"] : [])
-  project  = each.value
-  role     = "roles/bigquery.dataEditor"
-  member   = "serviceAccount:${google_service_account.svc_ai_platform.email}"
 }
 
 output "svc_ai_platform_email" {
