@@ -47,18 +47,6 @@ locals {
 }
 ```
 
-### Remove Cloud Run definition (if it exists)
-
-If the service has a module block in `environments/prod/main.tf`, remove it:
-
-```hcl
-# remove this block:
-# module "{service}" {
-#   source = "../../modules/cloud-run-service"
-#   ...
-# }
-```
-
 ### Apply the changes
 
 ```bash
@@ -73,11 +61,6 @@ git push origin dev
 git checkout ops
 git merge origin/dev
 git push origin ops
-
-# If you removed a Cloud Run definition in prod:
-git checkout prod
-git merge origin/dev
-git push origin prod
 ```
 
 Terraform will destroy:
@@ -200,8 +183,8 @@ Do NOT delete the repo — archived repos are free and the history may be useful
 
 - [ ] Traffic stopped, callers updated
 - [ ] Cloud Build triggers deleted
-- [ ] Service removed from `services.tf` and `main.tf`
-- [ ] Terraform applied on `ops` (and `prod` if applicable)
+- [ ] Service removed from `services.tf`
+- [ ] Terraform applied on `ops`
 - [ ] IAM cleanup requested from infra team
 - [ ] Cloud Run services deleted (DEV + PRD)
 - [ ] Container images deleted (DEV + PRD AR)
