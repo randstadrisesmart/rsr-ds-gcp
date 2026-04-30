@@ -385,6 +385,9 @@ baseline file so CI skips it on future builds:
 # Generate a baseline from all tracked files
 detect-secrets scan --all-files $(git ls-files) > .secrets.baseline
 
+# Check to make sure it passes
+detect-secrets scan --all-files --baseline .secrets.baseline
+
 # Commit the baseline
 git add .secrets.baseline
 git commit -m "Add secrets baseline for false positives"
@@ -475,7 +478,7 @@ group already exists, no new IAM request is needed.
 
 | Group | Purpose | Services |
 |-------|---------|----------|
-| `ollama` | LLM backed services | ollama, cleanpii, rascoeditorllm |
+| `ollama` | LLM backed services | ollama, cleanpii |
 | `talent` | Talent Radar | taxonomy, digitaltwin |
 | `analysis` | Other analysis | sociallistening, qamonitoring, mrapipeline, etc. |
 
