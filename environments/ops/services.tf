@@ -114,6 +114,12 @@ locals {
         { dataset_name = "testdataset", table_name = "bgdata", sync_frequency = "once", region = "US" },
       ]
     }
+    api-activity-monitoring = {
+      repo        = "rsr-ds-api-activity-monitoring"
+      build_group = "analysis"
+      region      = "us-west1"
+      sync_tables = []
+    }
   }
 }
 
