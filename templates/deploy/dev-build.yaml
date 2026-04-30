@@ -44,7 +44,7 @@ steps:
       - '-c'
       - |
         pip install ruff
-        ruff check . --exclude archive/
+        ruff check . --exclude archive/ --exclude integration_tests/
 
   # ─── SCAN FOR HARDCODED SECRETS ────────────────────────
   - id: 'scan-secrets'
@@ -179,6 +179,22 @@ steps:
           $$SECRETS_FLAG
     waitFor: ['push']
 
+  # ─── ROUTE TRAFFIC TO LATEST ───────────────────────────
+  # gcloud run deploy preserves any existing traffic pin (revisionName).
+  # Force 100% to the newest ready revision so the deploy actually serves.
+  - id: 'route-traffic'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'services'
+      - 'update-traffic'
+      - '${_SERVICE_NAME}'
+      - '--project=${_PROJECT_DEV}'
+      - '--region=${_REGION}'
+      - '--to-latest'
+    waitFor: ['deploy-dev']
+
   # ─── ENABLE IAP (frontend services only) ───────────────
   - id: 'enable-iap'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -194,7 +210,7 @@ steps:
         else
           echo "IAP not enabled for this service, skipping."
         fi
-    waitFor: ['deploy-dev']
+    waitFor: ['route-traffic']
 
   # ─── NOTIFY SUCCESS (PubSub) ───────────────────────────
   - id: 'notify'

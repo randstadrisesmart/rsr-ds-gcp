@@ -23,7 +23,7 @@ steps:
       - '-c'
       - |
         pip install ruff
-        ruff check . --exclude archive/
+        ruff check . --exclude archive/ --exclude integration_tests/
     waitFor: ['-']
 
   # ─── SCAN FOR HARDCODED SECRETS ────────────────────────

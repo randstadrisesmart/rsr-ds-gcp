@@ -66,6 +66,22 @@ steps:
       - '--startup-probe=periodSeconds=10,failureThreshold=${_STARTUP_PROBE_THRESHOLD},tcpSocket.port=8080'
     waitFor: ['copy-image']
 
+  # ─── ROUTE TRAFFIC TO LATEST ───────────────────────────
+  # gcloud run deploy preserves any existing traffic pin (revisionName).
+  # Force 100% to the newest ready revision so the deploy actually serves.
+  - id: 'route-traffic'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'services'
+      - 'update-traffic'
+      - '${_SERVICE_NAME}'
+      - '--project=${_PROJECT_PRD}'
+      - '--region=${_REGION}'
+      - '--to-latest'
+    waitFor: ['deploy-prd']
+
   # ─── ENABLE IAP (frontend services only) ───────────────
   - id: 'enable-iap'
     name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -81,7 +97,7 @@ steps:
         else
           echo "IAP not enabled for this service, skipping."
         fi
-    waitFor: ['deploy-prd']
+    waitFor: ['route-traffic']
 
   # ─── NOTIFY SUCCESS (PubSub) ───────────────────────────
   - id: 'notify'
