@@ -93,7 +93,7 @@ locals {
     api-activity-monitoring = {
       repo        = "rsr-ds-api-activity-monitoring"
       build_group = "analysis"
-      region      = "us-west1"
+      region      = "us-east1"
       sync_tables = []
     }
   }
