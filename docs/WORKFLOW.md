@@ -143,6 +143,89 @@ Test your change against the DEV service URL.
 
 ---
 
+## Test in DEV from a Feature Branch (Manual Build)
+
+The normal path to DEV is "merge to main → trigger fires → deploys". But
+sometimes you need to validate a change against the actual DEV environment
+before merging — things you can't catch locally, like:
+
+- IAM-authenticated calls between Cloud Run services
+- Real BigQuery reads/writes against the DEV dataset
+- Runtime secret mounts (`_RUNTIME_SECRETS`)
+- Cold-start behaviour and startup-probe timing
+- Anything that depends on the runtime SA
+
+You can run the same `deploy/dev-build.yaml` against your working tree with
+`gcloud builds submit`. This builds your local code, pushes it to DEV
+Artifact Registry, and deploys it to DEV Cloud Run — without a PR or a push
+to `main`.
+
+> **Heads-up:** this overwrites the current DEV revision of `{service}` for
+> everyone. Coordinate with your team before doing this, especially if other
+> people are testing against DEV. The next merge to `main` will deploy on
+> top of your manual revision, so DEV self-heals once the PR lands.
+
+### 1. Pre-flight locally
+
+Same checks the trigger would run (see Step 4 above) — lint, tests, secret
+scan, file-size scan. Don't waste a Cloud Build minute on something that
+fails locally.
+
+### 2. Submit the build
+
+From the root of your service repo, on your feature branch:
+
+```bash
+# {group} = your service's build group (ollama, talent, analysis, ...)
+# Look it up in environments/ops/services.tf in the rsr-ds-gcp repo.
+
+gcloud builds submit \
+  --config=deploy/dev-build.yaml \
+  --project=rsr-ds-group-ops-d0b0 \
+  --service-account=projects/rsr-ds-group-ops-d0b0/serviceAccounts/svc-build-{group}@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com \
+  --substitutions=COMMIT_SHA=$(git rev-parse HEAD) \
+  .
+```
+
+What each flag does:
+- `--config` — points at the same yaml the `{service}-dev` trigger uses
+- `--project=...-ops-d0b0` — Cloud Build runs in the OPS project
+- `--service-account=...svc-build-{group}@...` — uses the same build SA the
+  trigger uses, so it has the IAM grants to push images and deploy
+- `--substitutions=COMMIT_SHA=...` — the yaml tags the image with
+  `${COMMIT_SHA}`. The trigger provides this automatically; with manual
+  submits you have to pass it
+- `.` (final arg) — uploads the current directory as the build source
+
+The build runs the full pipeline: test → lint → scan → build → push → deploy
+→ route traffic. Tail the log in the terminal or open the Cloud Build
+console to watch it.
+
+### 3. Verify and clean up
+
+Test against the DEV service URL as normal. When you're done:
+
+- Open a PR like usual (Step 5 above) so the change goes through review
+- Once it merges, the `{service}-dev` trigger redeploys from `main` —
+  no extra cleanup needed
+
+If you abandon the change without merging, the DEV revision stays as
+whatever you last submitted until someone else's PR merges. Don't leave
+broken code sitting in DEV.
+
+### Troubleshooting
+
+- **`PERMISSION_DENIED: ... iam.serviceAccounts.actAs`** — your user
+  account can't impersonate the build SA. You need
+  `roles/iam.serviceAccountUser` on `svc-build-{group}@ops`. Ask the
+  infra team or have it added via the Step 5 IAM request.
+- **`COMMIT_SHA` shows up empty in image tags** — you forgot the
+  `--substitutions=COMMIT_SHA=...` flag.
+- **Build SA can't read a build secret** — `_BUILD_SECRETS` lists a
+  secret that isn't in `build_secrets` in `services.tf` for this group.
+
+---
+
 ## Deploying to Production
 
 Production deploys are triggered by git tags and require manual approval.
