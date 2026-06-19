@@ -96,6 +96,12 @@ locals {
       region      = "us-east1"
       sync_tables = []
     }
+    skills = {
+      repo        = "rsr-ds-skills"
+      build_group = "analysis"
+      region      = "europe-west1"
+      sync_tables = []
+    }
   }
 }
 
