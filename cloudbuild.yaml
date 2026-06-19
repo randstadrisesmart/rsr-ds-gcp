@@ -3,13 +3,9 @@
 # Forked from GoogleCloudPlatform/solutions-terraform-cloudbuild-gitops
 #
 # How it works:
-#   Push to branch named after an environment → Cloud Build runs terraform apply.
-#   Push to any other branch → terraform init + plan only (validation).
-#
-# Environments:
-#   ops — Cloud Build triggers, build SAs, PubSub, Artifact Registry, secrets
-#   dev — Runtime SA + IAM for rsr-ds-group-dev-f193
-#   prod — Runtime SA + IAM + Cloud Run service defs for rsr-ds-group-prd-83ad
+#   A single Terraform root (environments/ops) manages the CI/CD platform across
+#   all three GCP projects. Push to the `ops` branch → terraform apply.
+#   Any other branch (feature, dev) → terraform init + plan only (validation).
 
 steps:
 - id: 'branch name'
@@ -28,12 +24,8 @@ steps:
   args:
   - '-c'
   - |
-      if [ -d "environments/$BRANCH_NAME/" ]; then
-        cd environments/$BRANCH_NAME
-        terraform init
-      else
-        echo "Branch '$BRANCH_NAME' does not match an environment. Skipping init."
-      fi
+      cd environments/ops
+      terraform init
 
 - id: 'tf plan'
   name: 'hashicorp/terraform:1.7.0'
@@ -41,12 +33,8 @@ steps:
   args:
   - '-c'
   - |
-      if [ -d "environments/$BRANCH_NAME/" ]; then
-        cd environments/$BRANCH_NAME
-        terraform plan
-      else
-        echo "Branch '$BRANCH_NAME' does not match an environment. Skipping plan."
-      fi
+      cd environments/ops
+      terraform plan
 
 - id: 'tf apply'
   name: 'hashicorp/terraform:1.7.0'
@@ -54,13 +42,13 @@ steps:
   args:
   - '-c'
   - |
-      if [ -d "environments/$BRANCH_NAME/" ]; then
-        cd environments/$BRANCH_NAME
+      if [ "$BRANCH_NAME" = "ops" ]; then
+        cd environments/ops
         terraform apply -auto-approve
       else
         echo "***************************** SKIPPING APPLY *************************************"
-        echo "Branch '$BRANCH_NAME' does not match an environment (ops, dev, prod)."
-        echo "Only plan was run. Merge to an environment branch to apply."
+        echo "Branch '$BRANCH_NAME' is not the apply branch. Only plan was run (validation)."
+        echo "Merge to the 'ops' branch to apply."
         echo "*********************************************************************************"
       fi
 
