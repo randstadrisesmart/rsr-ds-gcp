@@ -6,32 +6,45 @@ Forked from [GoogleCloudPlatform/solutions-terraform-cloudbuild-gitops](https://
 
 ## Architecture
 
-Three GCP projects, managed by environment branches:
+A single Terraform root — [`environments/ops`](environments/ops) — manages the
+CI/CD platform across all three GCP projects. Each resource targets its project
+explicitly (`project = ...`), so there is one config and one state file rather
+than a separate config per environment.
 
-| Branch | Project | What it manages |
-|--------|---------|----------------|
-| `ops` | `rsr-ds-group-ops-d0b0` | Cloud Build triggers, per-service build SAs, PubSub, Artifact Registry, Secret Manager, monitoring |
-| `dev` | `rsr-ds-group-dev-f193` | Runtime SA (`svc-ai-platform@dev`) + IAM bindings |
-| `prod` | `rsr-ds-group-prd-83ad` | Runtime SA (`svc-ai-platform@prd`) + IAM bindings + Cloud Run service definitions |
+| Project | Role | What Terraform manages here |
+|---------|------|------------------------------|
+| `rsr-ds-group-ops-d0b0` | Control plane | Cloud Build triggers, per-group build SAs, PubSub, Secret Manager access, monitoring, BQ data-sync config |
+| `rsr-ds-group-dev-f193` | DEV runtime | Artifact Registry (`docker-images`) |
+| `rsr-ds-group-prd-83ad` | PRD runtime | Artifact Registry (`docker-images`) |
+
+Runtime service accounts and Cloud Run service definitions are **not** managed
+here — each service is built and deployed by its own Cloud Build pipeline (see
+`templates/`), and image promotion DEV → PRD happens at the image/tag level, not
+via Terraform.
 
 ## How it works
 
-Push to a branch named after an environment → Cloud Build runs `terraform apply` for that environment. Push to any other branch → `terraform plan` only (validation, no changes).
+Two branches drive the GitOps flow:
+
+| Branch | CI behaviour |
+|--------|--------------|
+| `dev` (default) | Integration / review branch. PRs land here; Cloud Build runs `terraform plan` only — validation, no changes. |
+| `ops` | Apply branch. Merging `dev` → `ops` runs `terraform apply`. |
 
 ```
-feature branch → terraform plan (CI check)
-       ↓ merge
-ops/dev/prod branch → terraform apply (deploys infra)
+feature branch ──PR──▶ dev   (terraform plan — CI check)
+                        │ merge
+                        ▼
+                       ops    (terraform apply — deploys infra)
 ```
 
 ## Modules
 
 | Module | Purpose |
 |--------|---------|
-| `build-service-account` | Per-service Cloud Build SA + PubSub publisher (cross-project IAM managed by infra team) |
+| `build-service-account` | Per-group Cloud Build SA + PubSub publisher (cross-project IAM managed by infra team) |
 | `cloud-build-trigger` | Dev trigger (push to main) + prod trigger (tag + manual approval) per service |
-| `cloud-run-service` | Cloud Run service definition with scaling, env vars, no-public-access |
-| `project-iam` | Runtime SA (`svc-ai-platform`) + roles (run.invoker, BQ, Secret Manager) |
+| `data-sync-config` | BigQuery scheduled-query config for DEV → PRD table sync |
 
 ## Guides
 
