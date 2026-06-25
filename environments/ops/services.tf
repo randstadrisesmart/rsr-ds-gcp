@@ -102,6 +102,18 @@ locals {
       region      = "europe-west1"
       sync_tables = []
     }
+    sector = {
+      repo        = "rsr-ds-sector"
+      build_group = "analysis"
+      region      = "europe-west1"
+      sync_tables = []
+    }
+    gateway = {
+      repo        = "rsr-ds-gateway"
+      build_group = "analysis"
+      region      = "europe-west1"
+      sync_tables = []
+    }
   }
 }
 
