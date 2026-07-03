@@ -114,6 +114,12 @@ locals {
       region      = "europe-west1"
       sync_tables = []
     }
+    job-title-matcher = {
+      repo        = "rsr-ds-job-title-matcher"
+      build_group = "analysis"
+      region      = "europe-west1"       # matches deploy/*.yaml _REGION
+      sync_tables = []                   # no BQ tables; models/indices mounted from gs://rsr-ds-models at runtime
+    }
   }
 }
 
