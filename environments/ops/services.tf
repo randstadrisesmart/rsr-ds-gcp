@@ -120,6 +120,17 @@ locals {
       region      = "europe-west1"       # matches deploy/*.yaml _REGION
       sync_tables = []                   # no BQ tables; models/indices mounted from gs://rsr-ds-models at runtime
     }
+    scarcity = {
+      repo        = "rsr-ds-scarcity"
+      build_group = "analysis"
+      region      = "europe-west1"       # matches deploy/*.yaml _REGION and the BQ datasets
+      # The /v1/scarcity API reads these two cubes directly, so PRD needs its own
+      # copies. Rebuilt quarterly by the demand/supply pipelines, hence weekly sync.
+      sync_tables = [
+        { dataset_name = "supply_eu", table_name = "final_market_scarcity_table", sync_frequency = "weekly", region = "europe-west1" },
+        { dataset_name = "demand_model_reveliolabs", table_name = "market_tightness_final", sync_frequency = "weekly", region = "europe-west1" },
+      ]
+    }
   }
 }
 
