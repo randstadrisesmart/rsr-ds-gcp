@@ -75,6 +75,12 @@ locals {
       build_group = "analysis"
       sync_tables = []
     }
+      compensation-model = {
+        repo        = "rsr-ds-compensation-model"
+        build_group = "analysis"
+        region      = "europe-west1"
+        sync_tables = []
+      }
     dynamic-insights = {
       repo        = "rsr-ds-dynamic-insights"
       build_group = "talent"
