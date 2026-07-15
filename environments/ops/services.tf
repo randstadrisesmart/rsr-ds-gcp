@@ -130,6 +130,16 @@ locals {
         { dataset_name = "demand_model_reveliolabs", table_name = "demand_by_location", sync_frequency = "weekly", region = "europe-west1" },
       ]
     }
+    supply = {
+      repo        = "rsr-ds-supply"
+      build_group = "analysis"
+      region      = "europe-west1"       # matches deploy/*.yaml _REGION and the BQ datasets
+      # The /v1/supply API reads this cube directly, so PRD needs its own copy.
+      # Rebuilt quarterly by the supply pipeline, hence weekly sync.
+      sync_tables = [
+        { dataset_name = "supply_eu", table_name = "supply_by_location", sync_frequency = "weekly", region = "europe-west1" },
+      ]
+    }
     scarcity = {
       repo        = "rsr-ds-scarcity"
       build_group = "analysis"
