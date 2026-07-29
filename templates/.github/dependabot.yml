@@ -1,0 +1,88 @@
+# Dependabot configuration — TEMPLATE.
+#
+# Copied into every service by ONBOARDING.md §1.4 (`cp -r templates/.github .github`).
+# Review the marked sections for your service before the first push.
+#
+# ─────────────────────────────────────────────────────────────────────────
+# WHY THIS FILE EXISTS AT ALL
+#   Without it a repo gets zero version-update PRs — but "Dependabot security
+#   updates" is enabled org-wide, and those PRs open regardless. This file is
+#   what bounds and groups them. Deleting it does not turn Dependabot off; it
+#   only gives up control over what it does.
+#
+# THE HOUSE POSTURE
+#   1. Prefer ranges in requirements.txt over exact pins, and do not commit a
+#      lockfile unless you need one. An unresolved range gives GitHub nothing
+#      to match against an advisory, so alert volume stays near zero. (For
+#      contrast: rsr-ds-ollama pins + vendors llama.cpp and carries ~55 open
+#      alerts, ~51 of them from the vendored tree.)
+#   2. Group everything. Every Dependabot PR burns a `{service}-pr` Cloud
+#      Build run and needs a CODEOWNERS approval. One grouped PR per week
+#      beats fifteen.
+#   3. Restate every deliberate version cap as an `ignore` rule — see below.
+#   4. Do NOT track vendored / third-party trees you never pip-install. Point
+#      `directory` at the manifests you actually deploy.
+#
+# THE IGNORE RULES  ← REVIEW THIS PER SERVICE
+#   If requirements.txt caps a major ("pandas>=2.2.0,<3.0"), that cap is load
+#   bearing and Dependabot cannot read the comment explaining why. Restate it
+#   here, scoped to semver-major ONLY so real security patches inside the
+#   allowed range still raise a PR.
+#
+#   When you intentionally lift a cap in requirements.txt, delete the matching
+#   ignore rule in the SAME commit, or the bump is silently skipped.
+# ─────────────────────────────────────────────────────────────────────────
+
+version: 2
+
+updates:
+  # ── The service itself ────────────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "deps"
+    groups:
+      python-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
+    ignore:
+      # REVIEW: one entry per major capped in your requirements.txt.
+      # Delete this block entirely if your service caps nothing.
+      # - dependency-name: "pandas"
+      #   update-types: ["version-update:semver-major"]
+
+  # ── Dockerfile base image ─────────────────────────────────────────────
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 1
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "deps(docker)"
+    ignore:
+      # REVIEW: base-image major/minor moves are a deliberate, tested change
+      # (the CI test step runs on python:3.11). Patch updates still come
+      # through. Change `python` to whatever your FROM line uses.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # ── OPTIONAL: extra manifests (Cloud Functions, sidecars, …) ──────────
+  # Add one block per directory that has its own requirements.txt.
+  # - package-ecosystem: "pip"
+  #   directory: "/functions/my_function"
+  #   schedule:
+  #     interval: "monthly"
+  #   open-pull-requests-limit: 1
+  #   groups:
+  #     my-function:
+  #       patterns: ["*"]

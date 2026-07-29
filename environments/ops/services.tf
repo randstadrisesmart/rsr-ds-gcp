@@ -157,6 +157,21 @@ locals {
         { dataset_name = "demand_model_reveliolabs", table_name = "market_tightness_final", sync_frequency = "weekly", region = "europe-west1" },
       ]
     }
+    location-matcher = {
+      repo        = "rsr-ds-location-matcher"
+      build_group = "analysis"
+      region      = "us-central1"        # matches deploy/*.yaml _REGION and Vertex AI (Gemini) location
+      sync_tables = [
+        # Queried at runtime by app/matcher.py via load_country_mapping().
+        # Only 256 rows and rarely changes, but PRD hard-fails without it.
+        { dataset_name = "location_normalization_model_EU", table_name = "country_mapping_clean", sync_frequency = "weekly", region = "europe-west1" },
+        # Fallback only — the reference snapshot is baked into the image at
+        # build time from gs://location_object/data/. This exists so the
+        # BigQuery fallback path in app/reference_data.py still works in PRD.
+        # 3M rows / ~337MB, so clone once rather than on every run.
+        { dataset_name = "location_normalization_model_EU", table_name = "universal_locations_reference_dataset_with_variance", sync_frequency = "once", region = "europe-west1" },
+      ]
+    }
   }
 }
 
