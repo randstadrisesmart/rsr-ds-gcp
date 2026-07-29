@@ -268,13 +268,41 @@ Both options use the same OPS secrets. Option A is simpler (no code, no
 dependency) and the secret value is available immediately. Option B is
 useful if you need to refresh secrets without redeploying.
 
-### 1.4 CODEOWNERS
+### 1.4 CODEOWNERS and Dependabot
 
-Copy the CODEOWNERS file from this repo into your service:
+Copy the `.github/` templates from this repo into your service:
 
 ```bash
 cp -r /path/to/rsr-ds-gcp/templates/.github .github
 ```
+
+That gives you two files:
+
+- **`CODEOWNERS`** — restricts who can approve PRs.
+- **`dependabot.yml`** — bounds and groups Dependabot. **Open it and review
+  the two `REVIEW:` blocks before your first push.**
+
+#### Why dependabot.yml is not optional
+
+"Dependabot security updates" is enabled org-wide, so security PRs open on
+your repo whether or not you configure anything. Deleting `dependabot.yml`
+does not turn Dependabot off — it only gives up control over what it does.
+Every PR it opens also burns a `{service}-pr` Cloud Build run and needs a
+CODEOWNERS approval, so ungoverned Dependabot is a real cost.
+
+House posture, encoded in the template:
+
+| Rule | Why |
+|------|-----|
+| Prefer **ranges** in `requirements.txt`; avoid exact pins and lockfiles unless you need them | An unresolved range gives GitHub nothing to match against an advisory, so alert volume stays near zero |
+| **Group** everything into one PR per ecosystem per week | One grouped PR beats fifteen — and one Cloud Build run beats fifteen |
+| Restate every deliberate version cap as an **`ignore`** rule, scoped to `semver-major` | Dependabot cannot read the comment explaining why `pandas<3.0` is load bearing; the major stays blocked while security patches inside the range still land |
+| Don't point Dependabot at **vendored trees** you never `pip install` | `rsr-ds-ollama` carries ~55 open alerts, ~51 of them from vendored `llama.cpp/` manifests that are never installed |
+
+If you lift a cap in `requirements.txt`, delete the matching `ignore` rule in
+the same commit — otherwise the bump is silently skipped. `rsr-ds-location-matcher`
+has a unit test (`tests/test_dependency_policy.py`) that enforces this; copy it
+if your service caps any majors.
 
 ### 1.5 Build yamls
 
