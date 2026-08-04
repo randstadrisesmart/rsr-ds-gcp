@@ -126,6 +126,15 @@ locals {
       region      = "europe-west1"       # matches deploy/*.yaml _REGION
       sync_tables = []                   # no BQ tables; models/indices mounted from gs://rsr-ds-models at runtime
     }
+    careerpath = {
+      repo        = "rsr-ds-careerpath"
+      build_group = "analysis"
+      region      = "europe-west1"       # matches deploy/*.yaml _REGION
+      # Serving artifact is a computed columnar blob, not a BQ table, so no sync.
+      # Built offline by pipeline/ and baked into the image at build time from
+      # gs://location_object/career-path-model.
+      sync_tables = []
+    }
     demand = {
       repo        = "rsr-ds-demand"
       build_group = "analysis"
