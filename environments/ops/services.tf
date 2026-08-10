@@ -126,6 +126,23 @@ locals {
       region      = "europe-west1"       # matches deploy/*.yaml _REGION
       sync_tables = []                   # no BQ tables; models/indices mounted from gs://rsr-ds-models at runtime
     }
+    jobtitle-normalizer = {
+      repo        = "rsr-ds-jobtitle-normalizer"
+      build_group = "analysis"
+      region      = "europe-west1"       # matches deploy/dev-build.yaml _REGION, and the
+                                         # BigQuery dataset TAXONOMY_PROJECT_jobtitles is
+                                         # regional there — a mismatch breaks every query
+      # Deploys a Cloud Run JOB, not a service: no HTTP surface, triggered by
+      # Cloud Scheduler daily at 11:00 UTC, and a full backlog pass measured
+      # 10h25m against the 60-minute ceiling a service allows. deploy/dev-build.yaml
+      # therefore runs `gcloud run jobs deploy`. Nothing here provisions Cloud Run,
+      # so this entry needs no special handling for that.
+      #
+      # DEV only for now by request: the repo deliberately has no
+      # deploy/prod-build.yaml, so the prd trigger this module creates has
+      # nothing to run.
+      sync_tables = []                   # tables live in DEV; nothing to clone to PRD yet
+    }
     careerpath = {
       repo        = "rsr-ds-careerpath"
       build_group = "analysis"
