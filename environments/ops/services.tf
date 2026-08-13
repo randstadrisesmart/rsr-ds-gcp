@@ -118,6 +118,11 @@ locals {
       repo        = "rsr-ds-gateway"
       build_group = "analysis"
       region      = "europe-west1"
+      # Serves the agent chat UI at /ui for testers, so it is a frontend
+      # service: the deploy pipeline runs `gcloud run services update --iap`
+      # after each deploy. The OAuth client is configured once in the console
+      # (ONBOARDING 7) and testers need roles/iap.httpsResourceAccessor.
+      iap         = true
       sync_tables = []
     }
     job-title-matcher = {
