@@ -203,6 +203,25 @@ locals {
         { dataset_name = "location_normalization_model_EU", table_name = "universal_locations_reference_dataset_with_variance", sync_frequency = "once", region = "europe-west1" },
       ]
     }
+    location-normalizer = {
+      repo        = "rsr-ds-location-normalizer"
+      build_group = "analysis"
+      region      = "europe-west1"       # matches deploy/dev-build.yaml _REGION, and the
+                                         # BigQuery dataset TAXONOMY_PROJECT_locations is
+                                         # regional there — a mismatch breaks every query
+      # Deploys a Cloud Run JOB, not a service: no HTTP surface, triggered by
+      # Cloud Scheduler daily at 06:00 UTC, after this pipeline's own regional
+      # refreshes (01:45/02:00/02:45) and cross-region copies (04:30/04:45).
+      # deploy/dev-build.yaml therefore runs `gcloud run jobs deploy`. Nothing
+      # here provisions Cloud Run, so this entry needs no special handling.
+      #
+      # Independent of jobtitle-normalizer despite the similar shape: its own
+      # repo, image, Cloud Run job, schedule and BigQuery registries. The two
+      # share only the svc-ai-platform@ runtime identity.
+      #
+      # DEV only for now: the repo deliberately has no deploy/prod-build.yaml,
+      # so the prd trigger this module creates has nothing to run.
+      sync_tables = []                   # tables live in DEV; nothing to clone to PRD yet
+    }
   }
 }
-
