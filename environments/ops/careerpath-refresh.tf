@@ -1,27 +1,38 @@
 # Quarterly data refresh for the careerpath service.
 #
 # careerpath serves a computed columnar artifact (~2.1 GB), not a BigQuery table,
-# so it can't use the data-sync scheduled-query path. Instead a manual Cloud Build
-# trigger runs deploy/refresh-build.yaml (in the service repo): rebuild the
-# artifact from BigQuery -> validate -> upload to gs://location_object -> re-run
-# careerpath-dev so DEV redeploys with the fresh data. Cloud Scheduler fires it on
-# the 2nd of Jan/Apr/Jul/Oct (the upstream table is recreated on the 1st).
+# so it can't use the data-sync scheduled-query path. A manual Cloud Build trigger
+# runs deploy/refresh-build.yaml (in the service repo): rebuild the artifact from
+# BigQuery -> validate -> upload to gs://location_object -> re-run careerpath-dev
+# so DEV redeploys with the fresh data. Cloud Scheduler fires it on the 2nd of
+# Jan/Apr/Jul/Oct (the upstream table is recreated on the 1st).
 #
 # PRD is intentionally untouched — it stays a deliberate careerpath-v* tag.
 #
-# NOTE for review: the IAM members at the bottom are additive (member-level, not
-# authoritative) grants the refresh needs beyond the analysis group's standard
-# bindings. If IAM for build SAs is managed out-of-band (per the note in
-# modules/build-service-account), move those to that process and drop them here.
+# ─────────────────────────────────────────────────────────────────────────────
+# Managed here: the Cloud Build trigger + the two SA-level IAM bindings the
+# Terraform runner is allowed to create. The Cloud Scheduler job and the
+# project/bucket IAM are provisioned OUT-OF-BAND — the runner's role covers
+# neither (matching the note in modules/build-service-account).
+#
+# Out-of-band, already done manually:
+#   - cloudscheduler.googleapis.com enabled on ops
+#   - Cloud Scheduler job "careerpath-refresh" (us-east1) -> runs this trigger,
+#     schedule "0 6 2 1,4,7,10 *", OAuth as the build SA. To bring under Terraform
+#     later: terraform import google_cloud_scheduler_job.careerpath_refresh \
+#       projects/rsr-ds-group-ops-d0b0/locations/us-east1/jobs/careerpath-refresh
+#
+# Out-of-band, STILL NEEDED (infra team) — grant to
+# svc-build-analysis@rsr-ds-group-ops-d0b0.iam.gserviceaccount.com:
+#   - roles/bigquery.jobUser         on rsr-ds-group-dev-f193   (run the query)
+#   - roles/bigquery.dataViewer      on rsr-ds-group-dev-f193   (read cp_output)
+#   - roles/storage.objectAdmin      on bucket location_object  (upload artifact)
+#   - roles/cloudbuild.builds.editor on rsr-ds-group-ops-d0b0   (re-run careerpath-dev)
+# Until these land, a scheduled refresh 403s at the BigQuery / GCS / redeploy step.
+# ─────────────────────────────────────────────────────────────────────────────
 
 data "google_project" "ops" {
   project_id = "rsr-ds-group-ops-d0b0"
-}
-
-resource "google_project_service" "cloud_scheduler" {
-  project            = "rsr-ds-group-ops-d0b0"
-  service            = "cloudscheduler.googleapis.com"
-  disable_on_destroy = false
 }
 
 locals {
@@ -53,29 +64,10 @@ resource "google_cloudbuild_trigger" "careerpath_refresh" {
   service_account = "projects/rsr-ds-group-ops-d0b0/serviceAccounts/${local.careerpath_build_sa}"
 }
 
-# ── Cloud Scheduler: 06:00 UTC on the 2nd of Jan/Apr/Jul/Oct ─
-resource "google_cloud_scheduler_job" "careerpath_refresh" {
-  project   = "rsr-ds-group-ops-d0b0"
-  region    = "us-east1"
-  name      = "careerpath-refresh"
-  schedule  = "0 6 2 1,4,7,10 *"
-  time_zone = "Etc/UTC"
+# Cloud Scheduler job "careerpath-refresh" is created out-of-band (see header) —
+# it targets this trigger's :run endpoint on schedule "0 6 2 1,4,7,10 *".
 
-  http_target {
-    http_method = "POST"
-    uri         = "https://cloudbuild.googleapis.com/v1/projects/rsr-ds-group-ops-d0b0/locations/global/triggers/${google_cloudbuild_trigger.careerpath_refresh.trigger_id}:run"
-    headers     = { "Content-Type" = "application/json" }
-    body        = base64encode("{}")
-
-    oauth_token {
-      service_account_email = local.careerpath_build_sa
-    }
-  }
-
-  depends_on = [google_project_service.cloud_scheduler]
-}
-
-# ── IAM the refresh needs (additive; see review note above) ──
+# ── SA-level IAM (the runner CAN manage these) ──────────────
 
 # Cloud Scheduler mints OAuth tokens as the build SA to call the Cloud Build API.
 resource "google_service_account_iam_member" "refresh_scheduler_token" {
@@ -85,37 +77,10 @@ resource "google_service_account_iam_member" "refresh_scheduler_token" {
 }
 
 # Running a trigger whose service_account is the build SA requires the caller
-# (also the build SA — via scheduler, and again for the careerpath-dev re-run
+# (also the build SA — via the scheduler, and again for the careerpath-dev re-run
 # inside the build) to actAs that SA.
 resource "google_service_account_iam_member" "refresh_self_actas" {
   service_account_id = "projects/rsr-ds-group-ops-d0b0/serviceAccounts/${local.careerpath_build_sa}"
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${local.careerpath_build_sa}"
-}
-
-# Run the careerpath-dev trigger (the redeploy step).
-resource "google_project_iam_member" "refresh_builds_editor" {
-  project = "rsr-ds-group-ops-d0b0"
-  role    = "roles/cloudbuild.builds.editor"
-  member  = "serviceAccount:${local.careerpath_build_sa}"
-}
-
-# Read the cp_output source table in DEV.
-resource "google_project_iam_member" "refresh_bq_job_user" {
-  project = "rsr-ds-group-dev-f193"
-  role    = "roles/bigquery.jobUser"
-  member  = "serviceAccount:${local.careerpath_build_sa}"
-}
-
-resource "google_project_iam_member" "refresh_bq_data_viewer" {
-  project = "rsr-ds-group-dev-f193"
-  role    = "roles/bigquery.dataViewer"
-  member  = "serviceAccount:${local.careerpath_build_sa}"
-}
-
-# Write the rebuilt artifact to the shared bucket the DEV image bakes from.
-resource "google_storage_bucket_iam_member" "refresh_gcs_writer" {
-  bucket = "location_object"
-  role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${local.careerpath_build_sa}"
 }
