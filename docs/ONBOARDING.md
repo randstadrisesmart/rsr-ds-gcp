@@ -523,11 +523,10 @@ latency to every call and puts the service in a different region from the
 BigQuery datasets, which are regional in `europe-west1`. One region also means
 one set of Artifact Registry repos, one place to look for logs and IAM.
 
-The module's default is still `us-east1` for the two services that predate this
-rule (`api-activity-monitoring`, `test-iap-api`) and `location-matcher` is in
-`us-central1`; those move when they are next touched. Do not rely on the
-default — write the region explicitly, and it must match `_REGION` in the
-service's `deploy/*.yaml`:
+The module's default is still `us-east1` for `api-activity-monitoring`, the one
+service that predates this rule and has not moved; it moves when next touched.
+Do not rely on the default — write the region explicitly, and it must match
+`_REGION` in the service's `deploy/*.yaml`:
 
 ```hcl
 {service} = {
