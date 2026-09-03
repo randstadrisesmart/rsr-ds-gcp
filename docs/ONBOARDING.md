@@ -316,7 +316,7 @@ Open each file and review the substitutions at the top:
 | Substitution | Default | When to change |
 |-------------|---------|----------------|
 | `_SERVICE_NAME` | `CHANGE_ME` | **Always** — set to your service name |
-| `_REGION` | `us-east1` | If co-locating with a dependency (e.g. `europe-west1`) |
+| `_REGION` | `us-east1` | **Always** — set to `europe-west1`, the standard region for every service (see Step 4) |
 | `_MEMORY` | `512Mi` | If loading heavy models at startup (e.g. `16Gi`) |
 | `_CPU` | `1` | Must match memory — see limits below |
 | `_TIMEOUT` | `300` | If startup takes more than 5 min (e.g. `1800` = 30 min) |
@@ -516,15 +516,24 @@ bindings for it (Step 5).
 
 ### Optional fields
 
-**`region`** — Cloud Run / AR region. Defaults to `us-east1`. Set this if your
-service needs a specific region (e.g. co-locate with a dependency, or GPU
-availability):
+**`region`** — Cloud Run / AR region. **Set it to `europe-west1` for every
+new service.** Services call each other constantly (the gateway fans out to six
+of them per request), and a cross-region hop adds ~100 ms of transatlantic
+latency to every call and puts the service in a different region from the
+BigQuery datasets, which are regional in `europe-west1`. One region also means
+one set of Artifact Registry repos, one place to look for logs and IAM.
+
+The module's default is still `us-east1` for the two services that predate this
+rule (`api-activity-monitoring`, `test-iap-api`) and `location-matcher` is in
+`us-central1`; those move when they are next touched. Do not rely on the
+default — write the region explicitly, and it must match `_REGION` in the
+service's `deploy/*.yaml`:
 
 ```hcl
 {service} = {
   repo        = "rsr-ds-{service}"
   build_group = "ollama"
-  region      = "europe-west1"       # co-locate with ollama
+  region      = "europe-west1"       # the standard region; matches deploy/*.yaml _REGION
   iap         = true                 # frontend services only
   sync_tables = []
 }
