@@ -34,6 +34,7 @@ locals {
     test-iap-api = {
       repo        = "rsr-ds-test-iap-api"
       build_group = "test-iap-api"
+      region      = "europe-west1"
       sync_tables = [
         { dataset_name = "test_iap_api", table_name = "smoke_test", sync_frequency = "once", region = "us-east1" },
       ]
@@ -162,7 +163,7 @@ locals {
     location-matcher = {
       repo        = "rsr-ds-location-matcher"
       build_group = "analysis"
-      region      = "us-central1"        # matches deploy/*.yaml _REGION and Vertex AI (Gemini) location
+      region      = "europe-west1"       # matches deploy/*.yaml _REGION and the BQ datasets; Gemini is on `global`
       sync_tables = [
         # Queried at runtime by app/matcher.py via load_country_mapping().
         # Only 256 rows and rarely changes, but PRD hard-fails without it.
