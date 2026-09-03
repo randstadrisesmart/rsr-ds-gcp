@@ -58,16 +58,15 @@ locals {
       sync_tables = []
     }
     compensation = {
+      # The live service. Renamed from
+      # rsr-ds-compensation-model-and-market-rate-analysis-booster on 2026-09-03;
+      # the Cloud Run service is `compensation` and the prd tag is compensation-vX.Y.Z.
+      # rsr-ds-compensation-legacy and rsr-ds-compensation-model are archived.
       repo        = "rsr-ds-compensation"
       build_group = "analysis"
-      sync_tables = []
+      region      = "europe-west1"       # matches deploy/*.yaml _REGION
+      sync_tables = []                   # BQML models live in DEV; PROD.md lists what PRD still needs
     }
-      compensation-model = {
-        repo        = "rsr-ds-compensation-model"
-        build_group = "analysis"
-        region      = "europe-west1"
-        sync_tables = []
-      }
     api-activity-monitoring = {
       repo        = "rsr-ds-api-activity-monitoring"
       build_group = "analysis"
