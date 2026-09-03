@@ -16,7 +16,7 @@
 # Build groups:
 #   ollama   — LLM backed services (ollama, cleanpii)
 #   talent   — Talent Radar (taxonomy, digitaltwin)
-#   analysis — Other analysis (sociallistening, qamonitoring, mrapipeline, etc.)
+#   analysis — Other analysis (qamonitoring, mrapipeline, etc.)
 #
 # sync_tables fields:
 #   dataset_name   — BQ dataset name (same in DEV and PRD)
@@ -52,49 +52,20 @@ locals {
       build_secrets = ["hf-token"]       # HuggingFace auth for model downloads
       sync_tables   = []
     }
-    sociallistening = {
-      repo          = "rsr-ds-sociallistening"
-      build_group   = "analysis"
-      region        = "europe-west1"
-      build_secrets = ["es-api-key", "hashstore-json", "encryptstore-json"]
-      sync_tables   = [
-        { dataset_name = "financial_data", table_name = "eod_quarterly_financial_reports", sync_frequency = "daily", region = "US" },
-        { dataset_name = "financial_data", table_name = "eod_financial_news", sync_frequency = "daily", region = "US" },
-        { dataset_name = "webscrapers", table_name = "indeed_us_company_names", sync_frequency = "weekly", region = "us-east1" },
-        { dataset_name = "webscrapers", table_name = "glassdoor_dot_com_company_ratings_new", sync_frequency = "weekly", region = "us-east1" },
-        { dataset_name = "webscrapers", table_name = "brandwatch_company_reviews", sync_frequency = "daily", region = "us-east1" },
-      ]
-    }
     temporary-classifier = {
       repo        = "rsr-ds-temporary-classifier"
       build_group = "analysis"
       sync_tables = []
     }
     compensation = {
+      # The live service. Renamed from
+      # rsr-ds-compensation-model-and-market-rate-analysis-booster on 2026-09-03;
+      # the Cloud Run service is `compensation` and the prd tag is compensation-vX.Y.Z.
+      # rsr-ds-compensation-legacy and rsr-ds-compensation-model are archived.
       repo        = "rsr-ds-compensation"
       build_group = "analysis"
-      sync_tables = []
-    }
-      compensation-model = {
-        repo        = "rsr-ds-compensation-model"
-        build_group = "analysis"
-        region      = "europe-west1"
-        sync_tables = []
-      }
-    dynamic-insights = {
-      repo        = "rsr-ds-dynamic-insights"
-      build_group = "talent"
-      sync_tables = [
-        { dataset_name = "webscrapers", table_name = "brandwatch_company_reviews", sync_frequency = "daily", region = "us-east1" },
-        { dataset_name = "webscrapers", table_name = "talent_dot_com_taxation_data", sync_frequency = "weekly", region = "us-east1" },
-        { dataset_name = "webscrapers", table_name = "numbeo_dot_com_cost_of_living", sync_frequency = "weekly", region = "us-east1" },
-        { dataset_name = "webscrapers", table_name = "numbeo_dot_com_quality_of_life", sync_frequency = "weekly", region = "us-east1" },
-        { dataset_name = "webscrapers", table_name = "indeed_us_company_names", sync_frequency = "weekly", region = "us-east1" },
-        { dataset_name = "webscrapers", table_name = "glassdoor_dot_com_company_ratings_new", sync_frequency = "weekly", region = "us-east1" },
-        { dataset_name = "financial_data", table_name = "eod_quarterly_financial_reports", sync_frequency = "daily", region = "US" },
-        { dataset_name = "financial_data", table_name = "eod_macro_indicators", sync_frequency = "daily", region = "US" },
-        { dataset_name = "testdataset", table_name = "bgdata", sync_frequency = "once", region = "US" },
-      ]
+      region      = "europe-west1"       # matches deploy/*.yaml _REGION
+      sync_tables = []                   # BQML models live in DEV; PROD.md lists what PRD still needs
     }
     api-activity-monitoring = {
       repo        = "rsr-ds-api-activity-monitoring"
