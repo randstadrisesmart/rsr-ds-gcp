@@ -614,6 +614,17 @@ If the build SA didn't already exist, Terraform creates:
 Terraform always creates:
 - Cloud Build triggers (dev + prod) for this service
 
+> ⚠️ **Do this before the first push to your service's `main`.** Triggers are
+> created by this apply and nothing else. A push or a merged PR that lands
+> before the trigger exists fires no build, deploys nothing, and produces no
+> error anywhere — GitHub shows the merge as green because GitHub knows nothing
+> about Cloud Build. Triggers do not fire retroactively, either: if that has
+> already happened, run the trigger by hand once it exists:
+>
+> ```bash
+> gcloud builds triggers run {service}-dev --project=rsr-ds-group-ops-d0b0 --branch=main
+> ```
+
 ---
 
 ## 5. Request IAM Bindings from Infra Team
@@ -670,8 +681,15 @@ GitHub App in the OPS project.
 
 ### Initial Dev Deploy
 
-In your **service repo** (`rsr-ds-{service}`), push an empty commit to `main`
-to trigger the first build and deploy:
+First confirm the trigger exists — it is created by the `ops` apply in Step 4,
+and a push before that point deploys nothing and reports nothing:
+
+```bash
+gcloud builds triggers describe {service}-dev --project=rsr-ds-group-ops-d0b0 --format="value(name)"
+```
+
+Then, in your **service repo** (`rsr-ds-{service}`), push an empty commit to
+`main` to trigger the first build and deploy:
 
 ```bash
 cd /path/to/rsr-ds-{service}
