@@ -70,7 +70,7 @@ locals {
     api-activity-monitoring = {
       repo        = "rsr-ds-api-activity-monitoring"
       build_group = "analysis"
-      region      = "us-east1"
+      region      = "europe-west1"       # moved from us-east1 on 2026-09-04; matches deploy/*.yaml _REGION
       # Its Cloud Scheduler jobs and run-failed alert policies (DEV + PRD) are in
       # api-activity-monitoring.tf; the endpoint registry is checks/ in the repo.
       sync_tables = []

@@ -11,35 +11,41 @@
 # failed. Retries are off on purpose: a run already retries transient outcomes per check,
 # and re-running a 15-minute sweep would not change a 404.
 #
-# The hand-made jobs (created 2026-05, timezone Africa/Conakry, hourly) share this name.
-# Delete them before the first apply so Terraform creates the jobs from this definition
-# and the state has a clean origin (alternative: terraform import, but that leaves the
-# hand-made history in place):
-#   gcloud scheduler jobs delete api_activity_monitoring --location=us-east1 --project=rsr-ds-group-dev-f193
-#   gcloud scheduler jobs delete api_activity_monitoring --location=us-east1 --project=rsr-ds-group-prd-83ad
+# The hand-made jobs (created 2026-05, timezone Africa/Conakry, hourly, us-east1) were
+# deleted before the first apply so these are created fresh with a clean state origin
+# (done 2026-09-04). The old jobs were in us-east1; these are created in europe-west1.
 #
 # The Terraform SA needs roles/cloudscheduler.admin and roles/monitoring.alertPolicyEditor
 # (plus roles/monitoring.notificationChannelEditor if channels are set) in DEV and PRD.
 
+# One entry per environment the service runs in. The scheduler job, the alert policy and
+# the notification channels must live in the same project as the Cloud Run service whose
+# logs they watch, which is why this file addresses DEV and PRD directly rather than OPS.
+data "google_project" "api_activity_monitoring" {
+  for_each   = { dev = "rsr-ds-group-dev-f193", prd = "rsr-ds-group-prd-83ad" }
+  project_id = each.value
+}
+
 locals {
   api_activity_monitoring = {
-    dev = {
-      project        = "rsr-ds-group-dev-f193"
-      project_number = "598511938992"
-    }
-    prd = {
-      project        = "rsr-ds-group-prd-83ad"
-      project_number = "950407139876"
+    for env, p in data.google_project.api_activity_monitoring : env => {
+      project        = p.project_id
+      project_number = p.number # Cloud Run's deterministic URL embeds the numeric project id
     }
   }
-  api_activity_monitoring_region  = "us-east1"
+  api_activity_monitoring_region  = "europe-west1" # matches services.tf and deploy/*.yaml _REGION
   api_activity_monitoring_service = "api-activity-monitoring"
 }
 
 variable "api_activity_monitoring_alert_emails" {
   description = "Email addresses that receive the api-activity-monitoring run-failed alert (both environments)."
   type        = list(string)
-  default     = ["wayne.kenney@randstadsourceright.com"]
+  default = [
+    "giuliano.giuliani@randstadsourceright.nl",
+    "fabrizio.giuliani@randstadsourceright.nl",
+    "narender.kasimshetty@randstadsourceright.com",
+    "wayne.kenney@randstadsourceright.com",
+  ]
 }
 
 resource "google_cloud_scheduler_job" "api_activity_monitoring" {
