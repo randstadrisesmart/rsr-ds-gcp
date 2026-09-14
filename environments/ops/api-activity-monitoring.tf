@@ -43,6 +43,7 @@ variable "api_activity_monitoring_alert_emails" {
   default = [
     "giuliano.giuliani@randstadsourceright.nl",
     "fabrizio.giuliani@randstadsourceright.nl",
+    "wilbert.rossi@randstadsourceright.nl",
     "narender.kasimshetty@randstadsourceright.com",
     "wayne.kenney@randstadsourceright.com",
   ]
