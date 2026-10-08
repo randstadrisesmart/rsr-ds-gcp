@@ -116,8 +116,9 @@ locals {
     # rsr-ds-location-normalizer until 2026-09; those repos are gone and the
     # triggers that pointed at them are removed with their registry entries.
     # The monorepo's triggers were created by hand on 2026-09-26/28 with
-    # comment control on (PR builds wait for "/gcbrun"); registered here as they
-    # are and imported (imports.tf), so this apply changes nothing that fires.
+    # comment control on (PR builds waited for a "/gcbrun" comment); registered
+    # here and imported (imports.tf). comment_control is switched OFF here, as
+    # for every other repo: PR checks run on push (decided 2026-10-08).
     # Deploys are Cloud Run JOBS (jobtitles, locations) deployed by their own
     # dev-build.yaml; the API is deployed by hand in a fixed order (its README),
     # so it has a PR check only. No prod configs yet: prd triggers disabled.
@@ -126,7 +127,7 @@ locals {
       path            = "jobtitles"
       build_group     = "analysis"
       region          = "europe-west1" # the BigQuery datasets are regional there
-      comment_control = true
+      comment_control = false
       prd_enabled     = false
       descriptions = { # as the console-made triggers describe themselves
         pr  = "Monorepo: tests, lint and secret scan for jobtitles on a PR to main"
@@ -139,7 +140,7 @@ locals {
       path            = "locations"
       build_group     = "analysis"
       region          = "europe-west1"
-      comment_control = true
+      comment_control = false
       prd_enabled     = false
       descriptions = {
         pr  = "Monorepo: tests, lint and secret scan for locations on a PR to main"
@@ -152,7 +153,7 @@ locals {
       path            = "api"
       build_group     = "analysis"
       region          = "europe-west1"
-      comment_control = true
+      comment_control = false
       dev_enabled     = false
       prd_enabled     = false
       descriptions = {

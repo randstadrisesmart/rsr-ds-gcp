@@ -537,8 +537,8 @@ component's build config carries `dir: '<path>'`, and every trigger on the
 repo fires on every PR or push whatever folder changed. `dev_enabled` /
 `prd_enabled = false` keep a trigger disabled when the config does not exist.
 `comment_control = true` makes PR builds wait for a `/gcbrun` comment from a
-collaborator; it is on for the taxonomy monorepo because that is how its
-triggers were created, and off everywhere else.
+collaborator. Off everywhere, including the taxonomy monorepo since 2026-10
+(its console-made triggers had it on).
 
 ### Optional fields
 
