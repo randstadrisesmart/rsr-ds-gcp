@@ -128,7 +128,11 @@ locals {
       region          = "europe-west1" # the BigQuery datasets are regional there
       comment_control = true
       prd_enabled     = false
-      sync_tables     = []
+      descriptions = { # as the console-made triggers describe themselves
+        pr  = "Monorepo: tests, lint and secret scan for jobtitles on a PR to main"
+        dev = "Monorepo: build the jobtitles image and deploy its Cloud Run jobs (replaces jobtitle-normalizer-dev, whose repo is archived)"
+      }
+      sync_tables = []
     }
     taxonomy-wrapper-locations = {
       repo            = "rsr-ds-taxonomy-wrapper"
@@ -137,7 +141,11 @@ locals {
       region          = "europe-west1"
       comment_control = true
       prd_enabled     = false
-      sync_tables     = []
+      descriptions = {
+        pr  = "Monorepo: tests, lint and secret scan for locations on a PR to main"
+        dev = "Monorepo: build the locations image and deploy its Cloud Run jobs (replaces location-normalizer-dev, whose repo is archived)"
+      }
+      sync_tables = []
     }
     taxonomy-wrapper-api = {
       repo            = "rsr-ds-taxonomy-wrapper"
@@ -147,7 +155,10 @@ locals {
       comment_control = true
       dev_enabled     = false
       prd_enabled     = false
-      sync_tables     = []
+      descriptions = {
+        pr = "Monorepo: tests, lint and secret scan for the API on a PR to main"
+      }
+      sync_tables = []
     }
     careerpath = {
       repo        = "rsr-ds-careerpath"

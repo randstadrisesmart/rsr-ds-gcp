@@ -62,4 +62,5 @@ module "cloud_build_trigger" {
   comment_control = lookup(each.value, "comment_control", false)
   dev_enabled     = lookup(each.value, "dev_enabled", true)
   prd_enabled     = lookup(each.value, "prd_enabled", true)
+  descriptions    = lookup(each.value, "descriptions", {})
 }

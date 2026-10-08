@@ -41,15 +41,22 @@ variable "prd_enabled" {
   default     = true
 }
 
+variable "descriptions" {
+  description = "Optional description per trigger, keyed pr / dev / prd (kept for triggers adopted from the console)."
+  type        = map(string)
+  default     = {}
+}
+
 locals {
   config_dir = var.path == "" ? "deploy" : "${var.path}/deploy"
 }
 
 # PR trigger: fires on pull request to main (test + lint only)
 resource "google_cloudbuild_trigger" "pr" {
-  project  = "rsr-ds-group-ops-d0b0"
-  name     = "${var.service_name}-pr"
-  location = "global"
+  project     = "rsr-ds-group-ops-d0b0"
+  name        = "${var.service_name}-pr"
+  description = lookup(var.descriptions, "pr", null)
+  location    = "global"
 
   github {
     owner = var.github_owner
@@ -67,9 +74,10 @@ resource "google_cloudbuild_trigger" "pr" {
 
 # Dev trigger: fires on push to main
 resource "google_cloudbuild_trigger" "dev" {
-  project  = "rsr-ds-group-ops-d0b0"
-  name     = "${var.service_name}-dev"
-  location = "global"
+  project     = "rsr-ds-group-ops-d0b0"
+  name        = "${var.service_name}-dev"
+  description = lookup(var.descriptions, "dev", null)
+  location    = "global"
 
   github {
     owner = var.github_owner
@@ -95,9 +103,10 @@ resource "google_cloudbuild_trigger" "dev" {
 
 # Prod trigger: fires on tag matching {service}-v*
 resource "google_cloudbuild_trigger" "prd" {
-  project  = "rsr-ds-group-ops-d0b0"
-  name     = "${var.service_name}-prd"
-  location = "global"
+  project     = "rsr-ds-group-ops-d0b0"
+  name        = "${var.service_name}-prd"
+  description = lookup(var.descriptions, "prd", null)
+  location    = "global"
 
   github {
     owner = var.github_owner
