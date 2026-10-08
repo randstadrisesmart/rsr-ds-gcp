@@ -19,6 +19,10 @@
 # The job must exist before the first apply (the IAM resources address it by
 # name): merge the taxonomy-wrapper change first. The Terraform SA needs
 # roles/run.admin (for run.jobs.setIamPolicy) and roles/cloudscheduler.admin in DEV.
+# Bootstrap, by hand, like its other DEV roles: on 2026-10-08 the first apply
+# failed on run.jobs.getIamPolicy, and run.admin was granted to
+# rsr-ds-group-ops-d0b0@appspot.gserviceaccount.com on this ONE job (not the
+# project); the re-run then created the IAM members and the scheduler.
 #
 # DEV only: there is no PRD retrain. A model reaches PRD through the matcher's
 # own tag release, which pins the staged folder in its prod-build.yaml.
@@ -60,17 +64,12 @@ resource "google_cloud_run_v2_job_iam_member" "jobtitles_retrain_scheduler" {
   member   = "serviceAccount:${local.jobtitles_retrain.runtime_sa}"
 }
 
-# Staging writes gs://rsr-ds-models/job-title-matcher/revelio/<release>/ and the
-# cleanup deletes old folders. The runtime account could only READ this bucket
-# (the matcher mounts it); the first staging run failed on exactly that
-# (2026-10-08, storage.objects.create denied). Object admin on this one bucket,
-# nothing broader: the folders are versioned and the chain never touches the
-# flat legacy layout.
-resource "google_storage_bucket_iam_member" "jobtitles_retrain_models_writer" {
-  bucket = "rsr-ds-models"
-  role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${local.jobtitles_retrain.runtime_sa}"
-}
+# Staging writes gs://global-taxonomy-bucket/jobtitles/model/<taxonomy>/<release>/
+# and the cleanup deletes old folders. The runtime account has had objectAdmin on
+# that bucket since 2026-09-25 (granted by hand when the bucket was created, with
+# the matcher's move there in its PR #13), so no grant is needed here. The
+# objectAdmin on rsr-ds-models this file first carried (applied 2026-10-08) was
+# for the bucket the matcher had already left; removed the same day.
 
 resource "google_cloud_scheduler_job" "jobtitles_retrain_queue" {
   project          = local.jobtitles_retrain.project
