@@ -80,9 +80,8 @@ resource "google_cloud_scheduler_job" "jobtitles_retrain_queue" {
   time_zone        = "Etc/UTC"
   attempt_deadline = "180s" # this only STARTS the execution; the run itself may take hours
 
-  retry_config {
-    retry_count = 0
-  }
+  # No retry_config block: no retries is the API default, and an explicit
+  # all-zero block is not echoed back, so it showed as a change on every apply.
 
   http_target {
     http_method = "POST"
