@@ -51,11 +51,15 @@ resource "google_secret_manager_secret_iam_member" "build_secrets" {
 
 # Create per-service Cloud Build triggers (using the group's SA)
 module "cloud_build_trigger" {
-  for_each     = local.services
-  source       = "../../modules/cloud-build-trigger"
-  service_name = each.key
-  github_repo  = each.value.repo
-  build_sa     = module.build_sa[each.value.build_group].build_sa_email
-  region       = lookup(each.value, "region", "us-east1")
-  iap          = lookup(each.value, "iap", false)
+  for_each        = local.services
+  source          = "../../modules/cloud-build-trigger"
+  service_name    = each.key
+  github_repo     = each.value.repo
+  build_sa        = module.build_sa[each.value.build_group].build_sa_email
+  region          = lookup(each.value, "region", "us-east1")
+  iap             = lookup(each.value, "iap", false)
+  path            = lookup(each.value, "path", "")
+  comment_control = lookup(each.value, "comment_control", false)
+  dev_enabled     = lookup(each.value, "dev_enabled", true)
+  prd_enabled     = lookup(each.value, "prd_enabled", true)
 }
