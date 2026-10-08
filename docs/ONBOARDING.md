@@ -514,6 +514,32 @@ Pick the group that fits your service. If none fits, create a new group name —
 Terraform will create the SA automatically, and you'll need to request IAM
 bindings for it (Step 5).
 
+### Monorepo components
+
+One repo can hold several components, each with its own `deploy/` folder and
+its own Cloud Run service or job. Register each component as its own entry
+with `path` set to its folder (see `taxonomy-wrapper-*` in `services.tf`):
+
+```hcl
+    taxonomy-wrapper-jobtitles = {
+      repo        = "rsr-ds-taxonomy-wrapper"
+      path        = "jobtitles"           # configs at jobtitles/deploy/*.yaml
+      build_group = "analysis"
+      region      = "europe-west1"
+      prd_enabled = false                 # no jobtitles/deploy/prod-build.yaml yet
+      sync_tables = []
+    }
+```
+
+The registry key names the triggers (`<key>-pr/dev/prd`), the image
+(`_SERVICE_NAME`) and the prod tag (`<key>-vX.Y.Z`). Every step in such a
+component's build config carries `dir: '<path>'`, and every trigger on the
+repo fires on every PR or push whatever folder changed. `dev_enabled` /
+`prd_enabled = false` keep a trigger disabled when the config does not exist.
+`comment_control = true` makes PR builds wait for a `/gcbrun` comment from a
+collaborator. Off everywhere, including the taxonomy monorepo since 2026-10
+(its console-made triggers had it on).
+
 ### Optional fields
 
 **`region`** — Cloud Run / AR region. **Set it to `europe-west1` for every

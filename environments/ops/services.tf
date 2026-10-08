@@ -10,6 +10,12 @@
 #                   that the build SA needs access to at build time
 #   iap           — (optional, default false) enable IAP on the Cloud Run service
 #                   for frontend/UI services that users access in a browser
+#   path          — (optional) subfolder of a monorepo that holds this component;
+#                   its configs are <path>/deploy/*.yaml. Triggers are named after
+#                   the registry key, and the key is the _SERVICE_NAME the build gets.
+#   comment_control — (optional, default false) PR builds wait for "/gcbrun"
+#   dev_enabled / prd_enabled — (optional, default true) false keeps that trigger
+#                   disabled (a component without that deploy config)
 #   sync_tables   — list of BQ tables to zero-copy clone DEV → PRD nightly
 #                   use sync_tables = [] if the service has no BQ tables
 #
@@ -40,17 +46,17 @@ locals {
       ]
     }
     ollama = {
-      repo        = "rsr-ds-ollama"
-      build_group = "ollama"
-      region      = "europe-west1"       # GPU (nvidia-l4) availability
+      repo          = "rsr-ds-ollama"
+      build_group   = "ollama"
+      region        = "europe-west1" # GPU (nvidia-l4) availability
       build_secrets = ["hf-token"]
-      sync_tables = []
+      sync_tables   = []
     }
     cleanpii = {
       repo          = "rsr-ds-cleanpii"
       build_group   = "ollama"
-      region        = "europe-west1"     # co-located with ollama for lower latency
-      build_secrets = ["hf-token"]       # HuggingFace auth for model downloads
+      region        = "europe-west1" # co-located with ollama for lower latency
+      build_secrets = ["hf-token"]   # HuggingFace auth for model downloads
       sync_tables   = []
     }
     temporary-classifier = {
@@ -65,13 +71,13 @@ locals {
       # rsr-ds-compensation-legacy and rsr-ds-compensation-model are archived.
       repo        = "rsr-ds-compensation"
       build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/*.yaml _REGION
-      sync_tables = []                   # BQML models live in DEV; PROD.md lists what PRD still needs
+      region      = "europe-west1" # matches deploy/*.yaml _REGION
+      sync_tables = []             # BQML models live in DEV; PROD.md lists what PRD still needs
     }
     api-activity-monitoring = {
       repo        = "rsr-ds-api-activity-monitoring"
       build_group = "analysis"
-      region      = "europe-west1"       # moved from us-east1 on 2026-09-04; matches deploy/*.yaml _REGION
+      region      = "europe-west1" # moved from us-east1 on 2026-09-04; matches deploy/*.yaml _REGION
       # Its Cloud Scheduler jobs and run-failed alert policies (DEV + PRD) are in
       # api-activity-monitoring.tf; the endpoint registry is checks/ in the repo.
       sync_tables = []
@@ -102,30 +108,63 @@ locals {
     job-title-matcher = {
       repo        = "rsr-ds-job-title-matcher"
       build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/*.yaml _REGION
-      sync_tables = []                   # no BQ tables; models/indices mounted from gs://rsr-ds-models at runtime
+      region      = "europe-west1" # matches deploy/*.yaml _REGION
+      sync_tables = []             # no BQ tables; models/indices mounted from gs://rsr-ds-models at runtime
     }
-    jobtitle-normalizer = {
-      repo        = "rsr-ds-jobtitle-normalizer"
-      build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/dev-build.yaml _REGION, and the
-                                         # BigQuery dataset TAXONOMY_PROJECT_jobtitles is
-                                         # regional there — a mismatch breaks every query
-      # Deploys a Cloud Run JOB, not a service: no HTTP surface, triggered by
-      # Cloud Scheduler daily at 11:00 UTC, and a full backlog pass measured
-      # 10h25m against the 60-minute ceiling a service allows. deploy/dev-build.yaml
-      # therefore runs `gcloud run jobs deploy`. Nothing here provisions Cloud Run,
-      # so this entry needs no special handling for that.
-      #
-      # DEV only for now by request: the repo deliberately has no
-      # deploy/prod-build.yaml, so the prd trigger this module creates has
-      # nothing to run.
-      sync_tables = []                   # tables live in DEV; nothing to clone to PRD yet
+    # ── rsr-ds-taxonomy-wrapper: one repo, three components ──
+    # jobtitles/ and locations/ were the repos rsr-ds-jobtitle-normalizer and
+    # rsr-ds-location-normalizer until 2026-09; those repos are gone and the
+    # triggers that pointed at them are removed with their registry entries.
+    # The monorepo's triggers were created by hand on 2026-09-26/28 with
+    # comment control on (PR builds waited for a "/gcbrun" comment); registered
+    # here and imported (imports.tf). comment_control is switched OFF here, as
+    # for every other repo: PR checks run on push (decided 2026-10-08).
+    # Deploys are Cloud Run JOBS (jobtitles, locations) deployed by their own
+    # dev-build.yaml; the API is deployed by hand in a fixed order (its README),
+    # so it has a PR check only. No prod configs yet: prd triggers disabled.
+    taxonomy-wrapper-jobtitles = {
+      repo            = "rsr-ds-taxonomy-wrapper"
+      path            = "jobtitles"
+      build_group     = "analysis"
+      region          = "europe-west1" # the BigQuery datasets are regional there
+      comment_control = false
+      prd_enabled     = false
+      descriptions = { # as the console-made triggers describe themselves
+        pr  = "Monorepo: tests, lint and secret scan for jobtitles on a PR to main"
+        dev = "Monorepo: build the jobtitles image and deploy its Cloud Run jobs (replaces jobtitle-normalizer-dev, whose repo is archived)"
+      }
+      sync_tables = []
+    }
+    taxonomy-wrapper-locations = {
+      repo            = "rsr-ds-taxonomy-wrapper"
+      path            = "locations"
+      build_group     = "analysis"
+      region          = "europe-west1"
+      comment_control = false
+      prd_enabled     = false
+      descriptions = {
+        pr  = "Monorepo: tests, lint and secret scan for locations on a PR to main"
+        dev = "Monorepo: build the locations image and deploy its Cloud Run jobs (replaces location-normalizer-dev, whose repo is archived)"
+      }
+      sync_tables = []
+    }
+    taxonomy-wrapper-api = {
+      repo            = "rsr-ds-taxonomy-wrapper"
+      path            = "api"
+      build_group     = "analysis"
+      region          = "europe-west1"
+      comment_control = false
+      dev_enabled     = false
+      prd_enabled     = false
+      descriptions = {
+        pr = "Monorepo: tests, lint and secret scan for the API on a PR to main"
+      }
+      sync_tables = []
     }
     careerpath = {
       repo        = "rsr-ds-careerpath"
       build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/*.yaml _REGION
+      region      = "europe-west1" # matches deploy/*.yaml _REGION
       # Serving artifact is a computed columnar blob, not a BQ table, so no sync.
       # Built offline by pipeline/ and baked into the image at build time from
       # gs://location_object/career-path-model.
@@ -134,7 +173,7 @@ locals {
     demand = {
       repo        = "rsr-ds-demand"
       build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/*.yaml _REGION and the BQ datasets
+      region      = "europe-west1" # matches deploy/*.yaml _REGION and the BQ datasets
       # The /v1/demand API reads this cube directly, so PRD needs its own copy.
       # Rebuilt quarterly by the demand pipeline, hence weekly sync.
       sync_tables = [
@@ -144,7 +183,7 @@ locals {
     supply = {
       repo        = "rsr-ds-supply"
       build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/*.yaml _REGION and the BQ datasets
+      region      = "europe-west1" # matches deploy/*.yaml _REGION and the BQ datasets
       # The /v1/supply API reads this cube directly, so PRD needs its own copy.
       # Rebuilt quarterly by the supply pipeline, hence weekly sync.
       sync_tables = [
@@ -154,7 +193,7 @@ locals {
     scarcity = {
       repo        = "rsr-ds-scarcity"
       build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/*.yaml _REGION and the BQ datasets
+      region      = "europe-west1" # matches deploy/*.yaml _REGION and the BQ datasets
       # The /v1/scarcity API reads these two cubes directly, so PRD needs its own
       # copies. Rebuilt quarterly by the demand/supply pipelines, hence weekly sync.
       sync_tables = [
@@ -165,7 +204,7 @@ locals {
     location-matcher = {
       repo        = "rsr-ds-location-matcher"
       build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/*.yaml _REGION and the BQ datasets; Gemini is on `global`
+      region      = "europe-west1" # matches deploy/*.yaml _REGION and the BQ datasets; Gemini is on `global`
       sync_tables = [
         # Queried at runtime by app/matcher.py via load_country_mapping().
         # Only 256 rows and rarely changes, but PRD hard-fails without it.
@@ -176,26 +215,6 @@ locals {
         # 3M rows / ~337MB, so clone once rather than on every run.
         { dataset_name = "location_normalization_model_EU", table_name = "universal_locations_reference_dataset_with_variance", sync_frequency = "once", region = "europe-west1" },
       ]
-    }
-    location-normalizer = {
-      repo        = "rsr-ds-location-normalizer"
-      build_group = "analysis"
-      region      = "europe-west1"       # matches deploy/dev-build.yaml _REGION, and the
-                                         # BigQuery dataset TAXONOMY_PROJECT_locations is
-                                         # regional there — a mismatch breaks every query
-      # Deploys a Cloud Run JOB, not a service: no HTTP surface, triggered by
-      # Cloud Scheduler daily at 06:00 UTC, after this pipeline's own regional
-      # refreshes (01:45/02:00/02:45) and cross-region copies (04:30/04:45).
-      # deploy/dev-build.yaml therefore runs `gcloud run jobs deploy`. Nothing
-      # here provisions Cloud Run, so this entry needs no special handling.
-      #
-      # Independent of jobtitle-normalizer despite the similar shape: its own
-      # repo, image, Cloud Run job, schedule and BigQuery registries. The two
-      # share only the svc-ai-platform@ runtime identity.
-      #
-      # DEV only for now: the repo deliberately has no deploy/prod-build.yaml,
-      # so the prd trigger this module creates has nothing to run.
-      sync_tables = []                   # tables live in DEV; nothing to clone to PRD yet
     }
   }
 }
