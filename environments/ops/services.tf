@@ -128,10 +128,11 @@ locals {
       build_group     = "analysis"
       region          = "europe-west1" # the BigQuery datasets are regional there
       comment_control = false
-      prd_enabled     = false
+      prd_enabled     = true # jobtitles/deploy/prod-build.yaml
       descriptions = { # as the console-made triggers describe themselves
         pr  = "Monorepo: tests, lint and secret scan for jobtitles on a PR to main"
         dev = "Monorepo: build the jobtitles image and deploy its Cloud Run jobs (replaces jobtitle-normalizer-dev, whose repo is archived)"
+        prd = "Monorepo: promote the tagged jobtitles image to PRD and deploy its Cloud Run jobs (manual approval)"
       }
       sync_tables = []
     }
