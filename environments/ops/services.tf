@@ -219,5 +219,11 @@ locals {
         { dataset_name = "location_normalization_model_EU", table_name = "universal_locations_reference_dataset_with_variance", sync_frequency = "once", region = "europe-west1" },
       ]
     }
+    sentiment-analysis = {
+      repo        = "rsr-ds-sentiment-analysis"
+      build_group = "analysis"
+      region      = "europe-west1"
+      sync_tables = []
+    }
   }
 }
