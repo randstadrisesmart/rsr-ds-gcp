@@ -98,3 +98,25 @@ resource "google_cloud_scheduler_job" "jobtitles_retrain_queue" {
 
   depends_on = [google_cloud_run_v2_job_iam_member.jobtitles_retrain_scheduler]
 }
+
+# ── The matcher's deploy records which staged release it serves ──────────────
+#
+# rsr-ds-job-title-matcher's deploy/dev-build.yaml and prod-build.yaml, after a
+# successful `gcloud run deploy`, set served_dev_at / served_prd_at on the
+# retrain_requests row whose release_dir is the REVELIO_RELEASE_DIR they just
+# deployed (2026-10-20). That is how the dashboard's "Point the matcher" stage
+# turns done. The build account has no BigQuery role in DEV and project roles
+# are the infra team's (ONBOARDING 5), so the step runs the one UPDATE as the
+# retrain job's own runtime account, which already writes that table: the build
+# account may mint tokens for it, nothing more. Both builds write the DEV table,
+# because the queue exists only there.
+#
+# Bootstrap, by hand, as for the job above: the Terraform SA has only
+# serviceAccountUser on svc-ai-platform, so roles/iam.serviceAccountAdmin was
+# granted to rsr-ds-group-ops-d0b0@appspot.gserviceaccount.com on this ONE
+# service account (not the project) on 2026-10-20, before the first apply.
+resource "google_service_account_iam_member" "matcher_build_impersonates_retrain_runtime" {
+  service_account_id = "projects/${local.jobtitles_retrain.project}/serviceAccounts/${local.jobtitles_retrain.runtime_sa}"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${module.build_sa["analysis"].build_sa_email}"
+}
