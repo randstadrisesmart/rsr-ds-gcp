@@ -121,7 +121,8 @@ locals {
     # for every other repo: PR checks run on push (decided 2026-10-08).
     # Deploys are Cloud Run JOBS (jobtitles, locations) deployed by their own
     # dev-build.yaml; the API is deployed by hand in a fixed order (its README),
-    # so it has a PR check only. No prod configs yet: prd triggers disabled.
+    # so it has a PR check only. jobtitles and locations have a prod-build.yaml
+    # and their prd triggers are on; the API's stays off.
     taxonomy-wrapper-jobtitles = {
       repo            = "rsr-ds-taxonomy-wrapper"
       path            = "jobtitles"
@@ -142,10 +143,11 @@ locals {
       build_group     = "analysis"
       region          = "europe-west1"
       comment_control = false
-      prd_enabled     = false
+      prd_enabled     = true # locations/deploy/prod-build.yaml
       descriptions = {
         pr  = "Monorepo: tests, lint and secret scan for locations on a PR to main"
         dev = "Monorepo: build the locations image and deploy its Cloud Run jobs (replaces location-normalizer-dev, whose repo is archived)"
+        prd = "Monorepo: promote the tagged locations image to PRD and deploy its Cloud Run jobs (manual approval)"
       }
       sync_tables = []
     }
