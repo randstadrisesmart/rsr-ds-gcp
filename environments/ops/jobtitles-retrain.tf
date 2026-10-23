@@ -43,7 +43,6 @@ variable "jobtitles_retrain_operators" {
     "wayne.kenney@randstadsourceright.com",
     "giuliano.giuliani@randstadsourceright.nl",
     "fabrizio.giuliani@randstadsourceright.nl",
-    "wilbert.rossi@randstadsourceright.nl",
   ]
 }
 
