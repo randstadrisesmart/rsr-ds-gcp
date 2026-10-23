@@ -526,7 +526,6 @@ with `path` set to its folder (see `taxonomy-wrapper-*` in `services.tf`):
       path        = "jobtitles"           # configs at jobtitles/deploy/*.yaml
       build_group = "analysis"
       region      = "europe-west1"
-      prd_enabled = false                 # no jobtitles/deploy/prod-build.yaml yet
       sync_tables = []
     }
 ```
@@ -534,11 +533,20 @@ with `path` set to its folder (see `taxonomy-wrapper-*` in `services.tf`):
 The registry key names the triggers (`<key>-pr/dev/prd`), the image
 (`_SERVICE_NAME`) and the prod tag (`<key>-vX.Y.Z`). Every step in such a
 component's build config carries `dir: '<path>'`, and every trigger on the
-repo fires on every PR or push whatever folder changed. `dev_enabled` /
-`prd_enabled = false` keep a trigger disabled when the config does not exist.
-`comment_control = true` makes PR builds wait for a `/gcbrun` comment from a
-collaborator. Off everywhere, including the taxonomy monorepo since 2026-10
-(its console-made triggers had it on).
+repo fires on every PR or push whatever folder changed.
+
+Three optional switches exist; a normal entry sets none of them:
+
+- `dev_enabled` / `prd_enabled` (default `true`) — `false` keeps that trigger
+  registered but disabled. It is for a component whose `dev-build.yaml` or
+  `prod-build.yaml` does not exist **yet**; a live trigger pointing at a
+  missing config fails on every push. Flip it back to `true` (or delete the
+  line) in the same PR that adds the config. A component that stays on
+  `false` is deployed by hand, which is outside the git-is-the-deploy rule;
+  `taxonomy-wrapper-api` is the one current case.
+- `comment_control` (default `false`) — `true` makes PR builds wait for a
+  `/gcbrun` comment. It guards against fork PRs from strangers; the org is
+  private, so it is off everywhere and there is no reason to set it.
 
 ### Optional fields
 
