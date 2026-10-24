@@ -37,11 +37,12 @@ locals {
 }
 
 variable "jobtitles_retrain_operators" {
-  description = "People who may execute the retrain job directly, with arguments. The queue (retrain_requests) has its own operator list in the job's config."
+  description = "People who may execute the retrain job: directly with arguments, and from the taxonomy dashboard, which executes it (no arguments) as the viewer right after filing a retrain_requests row. Keep equal to RETRAIN_OPERATORS in the job's config and in dashboard/Code.gs, or the dashboard files the row and reports that the job could not be started."
   type        = list(string)
   default = [
     "wayne.kenney@randstadsourceright.com",
     "giuliano.giuliani@randstadsourceright.nl",
+    "fabrizio.giuliani@randstadsourceright.nl",
   ]
 }
 
