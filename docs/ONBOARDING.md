@@ -164,7 +164,7 @@ are two types depending on when the secret is needed:
 1. Go to **Security → Secret Manager** in the OPS project:
    https://console.cloud.google.com/security/secret-manager?project=rsr-ds-group-ops-d0b0
 2. Click **Create Secret**
-3. Enter a name (e.g. `es-api-key`)
+3. Enter a name (e.g. `taxonomy-api-shared-key`)
 4. Paste the secret value or upload a file
 5. Click **Create Secret**
 
@@ -228,7 +228,7 @@ Set the `_RUNTIME_SECRETS` substitution in `dev-build.yaml` and
 time — no code changes or extra dependencies needed.
 
 ```yaml
-_RUNTIME_SECRETS: 'ES_API_KEY=es-api-key:latest,/app/secrets/hash/hashstore.json=hashstore-json:latest'
+_RUNTIME_SECRETS: 'GATEWAY_TAXONOMY_CALLER_KEY=taxonomy-api-shared-key:latest,/app/secrets/config.json=my-config-json:latest'
 ```
 
 **Important:** Cloud Run's `--update-secrets` resolves secret names from the
@@ -238,9 +238,9 @@ This is a Cloud Run limitation — it does not support cross-project secret
 references. (For reading secrets from OPS in code, use Option B below.)
 
 The format is a comma-separated list of `TARGET=SECRET_NAME:VERSION`:
-- **Environment variable:** `ES_API_KEY=es-api-key:latest` — mounts as
-  env var `ES_API_KEY`, read with `os.environ["ES_API_KEY"]`
-- **File mount:** `/app/secrets/hash/hashstore.json=hashstore-json:latest`
+- **Environment variable:** `GATEWAY_TAXONOMY_CALLER_KEY=taxonomy-api-shared-key:latest` — mounts as
+  env var `GATEWAY_TAXONOMY_CALLER_KEY`, read with `os.environ["GATEWAY_TAXONOMY_CALLER_KEY"]`
+- **File mount:** `/app/secrets/config.json=my-config-json:latest`
   — mounts as a file at that path, read with `open()`
 
 **Option B — Secret Manager API:**
@@ -259,7 +259,7 @@ def get_secret(secret_id, project="rsr-ds-group-ops-d0b0"):
     return client.access_secret_version(name=name).payload.data.decode("utf-8")
 
 # Example usage at startup
-ES_API_KEY = get_secret("es-api-key")
+TAXONOMY_KEY = get_secret("taxonomy-api-shared-key")
 ```
 
 Add `google-cloud-secret-manager` to `requirements.txt`.
@@ -324,7 +324,7 @@ Open each file and review the substitutions at the top:
 | `_GCS_BUCKET` | `''` | GCS bucket for large data files (see §1.2). Leave empty if none |
 | `_GCS_DIRECTORIES` | `''` | Comma-separated dirs to download from bucket (e.g. `'models,geojsonMaps,data'`) |
 | `_BUILD_SECRETS` | `''` | OPS secrets needed during `docker build` (e.g. `'HF_TOKEN=hf-token:latest'`). See §1.3 |
-| `_RUNTIME_SECRETS` | `''` | Secrets mounted at runtime (e.g. `'ES_API_KEY=es-api-key:latest'`). See §1.3 |
+| `_RUNTIME_SECRETS` | `''` | Secrets mounted at runtime (e.g. `'GATEWAY_TAXONOMY_CALLER_KEY=taxonomy-api-shared-key:latest'`). See §1.3 |
 
 **Cloud Run memory/CPU limits:**
 
