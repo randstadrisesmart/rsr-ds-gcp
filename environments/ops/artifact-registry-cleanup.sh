@@ -106,13 +106,46 @@ if [ "$DRY_RUN" != "false" ]; then
   log "DRY_RUN=$DRY_RUN: nothing deleted. Set artifact_registry_cleanup_dry_run=false in Terraform to enable."
   exit 0
 fi
-FAILED=0
+# Deletes are issued --async. Synchronous gcloud polls the operation and that
+# poll fails spuriously (PERMISSION_DENIED on an operation that has already
+# finished, first run 2026-11-02) and takes ~5 s per image, which blew the
+# build timeout. The request is the only thing gcloud is trusted on here;
+# success is verified below by re-listing the repos.
+FAILED_REQ=0
 while IFS='|' read -r IMG _; do
-  if gcloud artifacts docker images delete "$IMG" --delete-tags --quiet; then
-    log "deleted $IMG"
-  else
-    log "ERROR deleting $IMG"; FAILED=$((FAILED+1))
+  if ! gcloud artifacts docker images delete "$IMG" --delete-tags --async --quiet >/dev/null 2>"$WORK/err"; then
+    log "ERROR delete request rejected for $IMG: $(tr '\n' ' ' < "$WORK/err")"; FAILED_REQ=$((FAILED_REQ+1))
   fi
 done < "$WORK/delete.txt"
-log "done: $((N_DEL-FAILED)) deleted, $FAILED failed"
-[ "$FAILED" -eq 0 ] || exit 1
+log "delete requests issued: $((N_DEL-FAILED_REQ)) accepted, $FAILED_REQ rejected"
+
+# Verify: re-inventory and intersect with the delete list, retrying while the
+# async deletes drain. Anything still present at the deadline is a failure.
+cut -d'|' -f1 "$WORK/delete.txt" | sort -u > "$WORK/delete.imgs"
+DEADLINE=$(( $(date -u +%s) + 1800 ))
+while :; do
+  : > "$WORK/now.txt"
+  for P in $PROJECTS; do
+    for LOC in $(gcloud artifacts repositories list --project="$P" \
+                   --format="value[separator='/'](name.segment(3),name.basename())"); do
+      REPO=${LOC#*/}; REGION=${LOC%/*}
+      case " $REPOS " in *" $REPO "*) ;; *) continue ;; esac
+      gcloud artifacts docker images list "$REGION-docker.pkg.dev/$P/$REPO" \
+        --format="csv[no-heading,separator='|'](package,version)" \
+        | awk -F'|' '{ print $1"@"$2 }' >> "$WORK/now.txt"
+    done
+  done
+  must_nonempty "$WORK/now.txt" "post-delete image listing"
+  sort -u "$WORK/now.txt" -o "$WORK/now.txt"
+  comm -12 "$WORK/delete.imgs" "$WORK/now.txt" > "$WORK/remaining.txt"
+  N_REM=$(wc -l < "$WORK/remaining.txt")
+  log "verify: $N_REM of $N_DEL still present"
+  [ "$N_REM" -eq 0 ] && break
+  [ "$(date -u +%s)" -lt "$DEADLINE" ] || break
+  sleep 60
+done
+log "done: $((N_DEL-N_REM)) deleted, $N_REM still present"
+if [ "$N_REM" -gt 0 ]; then
+  echo "----- NOT DELETED -----"; cat "$WORK/remaining.txt"; echo "-----"
+  exit 1
+fi
