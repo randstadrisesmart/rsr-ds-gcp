@@ -78,7 +78,7 @@ resource "google_cloudbuild_trigger" "artifact_registry_cleanup" {
     options {
       logging = "CLOUD_LOGGING_ONLY"
     }
-    timeout = "3600s"
+    timeout = "7200s"
 
     step {
       id         = "cleanup"
