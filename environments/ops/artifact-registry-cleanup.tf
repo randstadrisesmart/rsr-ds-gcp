@@ -25,8 +25,8 @@
 # Safety: the run ABORTS, deleting nothing, if any revision, job or image
 # listing fails or if the referenced set is empty. An empty set would otherwise
 # delete every image. var.artifact_registry_cleanup_dry_run (default true)
-# logs the deletion list without deleting; flip it to false once a dry run has
-# been read. Every run is a Cloud Build in OPS; the log is the audit trail.
+# logs the deletion list without deleting. Dry run read 2026-11-02 (build 77fc0c3d:
+# 215 kept, 872 to delete); armed since. Every run is a Cloud Build in OPS; the log is the audit trail.
 #
 # Runs as the Terraform SA (rsr-ds-group-ops-d0b0@appspot.gserviceaccount.com),
 # which already holds roles/artifactregistry.admin in DEV and PRD. Bootstrap by
@@ -38,7 +38,7 @@
 variable "artifact_registry_cleanup_dry_run" {
   description = "true: log what would be deleted and delete nothing. Set false after reading a dry-run log."
   type        = bool
-  default     = true
+  default     = false
 }
 
 locals {
