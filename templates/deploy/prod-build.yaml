@@ -16,7 +16,7 @@ substitutions:
   _TIMEOUT: '300'
   _STARTUP_PROBE_THRESHOLD: '30'      # must match dev-build.yaml
   # ── Runtime secrets ──              # must match dev-build.yaml
-  _RUNTIME_SECRETS: ''                 # e.g. 'ES_API_KEY=es-api-key:latest,/app/secrets/hash/hashstore.json=hashstore-json:latest'
+  _RUNTIME_SECRETS: ''                 # e.g. 'GATEWAY_TAXONOMY_CALLER_KEY=taxonomy-api-shared-key:latest,/app/secrets/config.json=my-config-json:latest'
   # ── Do not change ──
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _PROJECT_PRD: rsr-ds-group-prd-83ad

@@ -20,7 +20,7 @@ substitutions:
   # ── Build secrets ──                # OPS secrets needed during docker build. leave empty if none.
   _BUILD_SECRETS: ''                   # e.g. 'HF_TOKEN=hf-token:latest'
   # ── Runtime secrets ──              # leave empty if none
-  _RUNTIME_SECRETS: ''                 # e.g. 'ES_API_KEY=es-api-key:latest'
+  _RUNTIME_SECRETS: ''                 # e.g. 'GATEWAY_TAXONOMY_CALLER_KEY=taxonomy-api-shared-key:latest'
   # ── Do not change ──
   _PROJECT_DEV: rsr-ds-group-dev-f193
   _ENV: dev
