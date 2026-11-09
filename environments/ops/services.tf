@@ -37,14 +37,6 @@
 
 locals {
   services = {
-    test-iap-api = {
-      repo        = "rsr-ds-test-iap-api"
-      build_group = "test-iap-api"
-      region      = "europe-west1"
-      sync_tables = [
-        { dataset_name = "test_iap_api", table_name = "smoke_test", sync_frequency = "once", region = "us-east1" },
-      ]
-    }
     cleanpii = {
       repo          = "rsr-ds-cleanpii"
       build_group   = "ollama"
