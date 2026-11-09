@@ -13,15 +13,20 @@
 # THE HOUSE POSTURE
 #   1. Prefer ranges in requirements.txt over exact pins, and do not commit a
 #      lockfile unless you need one. An unresolved range gives GitHub nothing
-#      to match against an advisory, so alert volume stays near zero. (For
-#      contrast: rsr-ds-ollama pins + vendors llama.cpp and carries ~55 open
-#      alerts, ~51 of them from the vendored tree.)
-#   2. Group everything. Every Dependabot PR burns a `{service}-pr` Cloud
-#      Build run and needs a CODEOWNERS approval. One grouped PR per week
-#      beats fifteen.
+#      to match against an advisory, so alert volume stays near zero.
+#   2. Security-only PRs (`open-pull-requests-limit: 0`), grouped into one PR.
+#      Setting `open-pull-requests-limit: 0` disables routine version-update
+#      churn while keeping `groups` and `ignore` rules active on security
+#      updates. Every Dependabot PR burns a `{service}-pr` Cloud Build run and
+#      needs a CODEOWNERS approval, so security updates are grouped into a
+#      single PR per directory.
 #   3. Restate every deliberate version cap as an `ignore` rule — see below.
-#   4. Do NOT track vendored / third-party trees you never pip-install. Point
-#      `directory` at the manifests you actually deploy.
+#   4. List EVERY directory in the repo that holds a manifest (`requirements.txt`,
+#      `pyproject.toml`, `package.json`). Omitting a directory from this file
+#      only turns off *version* updates for it — repo-wide *security* updates
+#      still scan it and will open ungrouped PRs if it is not listed here.
+#      If `archive/` holds an old `requirements.txt`, use the `/archive` block
+#      below with `ignore: [{ dependency-name: "*" }]` to block all PRs from it.
 #
 # THE IGNORE RULES  ← REVIEW THIS PER SERVICE
 #   If requirements.txt caps a major ("pandas>=2.2.0,<3.0"), that cap is load
@@ -42,15 +47,13 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 3
+    # 0 disables routine version-update PRs; security updates still open and
+    # obey `groups` and `ignore` below.
+    open-pull-requests-limit: 0
     labels: ["dependencies"]
     commit-message:
       prefix: "deps"
     groups:
-      python-minor-and-patch:
-        applies-to: version-updates
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
       python-security:
         applies-to: security-updates
         patterns: ["*"]
@@ -65,7 +68,7 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 0
     labels: ["dependencies"]
     commit-message:
       prefix: "deps(docker)"
@@ -77,12 +80,25 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   # ── OPTIONAL: extra manifests (Cloud Functions, sidecars, …) ──────────
-  # Add one block per directory that has its own requirements.txt.
+  # Add one block per subdirectory that has its own requirements.txt, or
+  # security updates in that directory will open ungrouped PRs.
   # - package-ecosystem: "pip"
   #   directory: "/functions/my_function"
   #   schedule:
   #     interval: "monthly"
-  #   open-pull-requests-limit: 1
+  #   open-pull-requests-limit: 0
   #   groups:
-  #     my-function:
+  #     my-function-security:
+  #       applies-to: security-updates
   #       patterns: ["*"]
+
+  # ── OPTIONAL: archived manifests (/archive) ───────────────────────────
+  # Uncomment if `archive/` contains a `requirements.txt` so Dependabot blocks
+  # all PRs (both security and version updates) for archived code.
+  # - package-ecosystem: "pip"
+  #   directory: "/archive"
+  #   schedule:
+  #     interval: "monthly"
+  #   open-pull-requests-limit: 0
+  #   ignore:
+  #     - dependency-name: "*"
