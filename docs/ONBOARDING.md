@@ -13,7 +13,8 @@ Your service repo should look like this before pushing:
 ```
 rsr-ds-{service}/
 ├── .github/
-│   └── CODEOWNERS            # restricts who can approve PRs
+│   ├── CODEOWNERS            # restricts who can approve PRs
+│   └── dependabot.yml        # bounds and groups Dependabot security PRs
 ├── deploy/
 │   ├── pr-build.yaml         # PR status check (test + lint only)
 │   ├── dev-build.yaml        # CI/CD pipeline for dev
@@ -294,10 +295,10 @@ House posture, encoded in the template:
 
 | Rule | Why |
 |------|-----|
-| Prefer **ranges** in `requirements.txt`; avoid exact pins and lockfiles unless you need them | An unresolved range gives GitHub nothing to match against an advisory, so alert volume stays near zero |
-| **Group** everything into one PR per ecosystem per week | One grouped PR beats fifteen — and one Cloud Build run beats fifteen |
-| Restate every deliberate version cap as an **`ignore`** rule, scoped to `semver-major` | Dependabot cannot read the comment explaining why `pandas<3.0` is load bearing; the major stays blocked while security patches inside the range still land |
-| Don't point Dependabot at **vendored trees** you never `pip install` | `rsr-ds-ollama` carries ~55 open alerts, ~51 of them from vendored `llama.cpp/` manifests that are never installed |
+| Prefer **ranges** (`>=`, plus `<` caps where needed) in `requirements.txt`; avoid exact pins (`==`) and `pip freeze` dumps unless required | An unresolved range gives GitHub nothing to match against an advisory, so alert volume stays near zero |
+| **Security-only PRs** (`open-pull-requests-limit: 0`), **grouped** into one PR per directory | `open-pull-requests-limit: 0` disables routine version-bump churn (which otherwise rewrites `>=` lower bounds every week) while keeping `groups` and `ignore` rules active on security updates — so at most one grouped security PR opens instead of fifteen |
+| Restate every deliberate version cap as an **`ignore`** rule, scoped to `semver-major` | Dependabot cannot read the comment explaining why `pandas<3.0` or `transformers<5.0` is load bearing; the major stays blocked while security patches inside the range still land |
+| Cover **every directory** with a manifest in `dependabot.yml`, and silence `archive/` with a wildcard `ignore` (`dependency-name: "*"`) if `archive/` contains a `requirements.txt` | Omitting a directory from `dependabot.yml` only turns off *version* updates for it — org-wide *security* updates still scan the entire repo's Dependency Graph and will open ungrouped PRs unless the directory is covered (or ignored with `dependency-name: "*"`) |
 
 If you lift a cap in `requirements.txt`, delete the matching `ignore` rule in
 the same commit — otherwise the bump is silently skipped. `rsr-ds-location-matcher`
