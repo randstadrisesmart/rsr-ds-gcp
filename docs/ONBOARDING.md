@@ -13,7 +13,8 @@ Your service repo should look like this before pushing:
 ```
 rsr-ds-{service}/
 ├── .github/
-│   └── CODEOWNERS            # restricts who can approve PRs
+│   ├── CODEOWNERS            # restricts who can approve PRs
+│   └── dependabot.yml        # bounds and groups Dependabot security PRs
 ├── deploy/
 │   ├── pr-build.yaml         # PR status check (test + lint only)
 │   ├── dev-build.yaml        # CI/CD pipeline for dev
