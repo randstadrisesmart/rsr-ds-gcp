@@ -45,24 +45,12 @@ locals {
         { dataset_name = "test_iap_api", table_name = "smoke_test", sync_frequency = "once", region = "us-east1" },
       ]
     }
-    ollama = {
-      repo          = "rsr-ds-ollama"
-      build_group   = "ollama"
-      region        = "europe-west1" # GPU (nvidia-l4) availability
-      build_secrets = ["hf-token"]
-      sync_tables   = []
-    }
     cleanpii = {
       repo          = "rsr-ds-cleanpii"
       build_group   = "ollama"
       region        = "europe-west1" # co-located with ollama for lower latency
       build_secrets = ["hf-token"]   # HuggingFace auth for model downloads
       sync_tables   = []
-    }
-    temporary-classifier = {
-      repo        = "rsr-ds-temporary-classifier"
-      build_group = "analysis"
-      sync_tables = []
     }
     compensation = {
       # The live service. Renamed from
