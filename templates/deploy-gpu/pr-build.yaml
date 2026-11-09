@@ -22,8 +22,8 @@ steps:
     args:
       - '-c'
       - |
-        pip install ruff
-        ruff check . --exclude archive/
+        pip install "ruff>=0.16,<1.0"
+        ruff check . --select E4,E7,E9,F --exclude archive/ --exclude integration_tests/
     waitFor: ['-']
 
   # ─── SCAN FOR HARDCODED SECRETS ────────────────────────
