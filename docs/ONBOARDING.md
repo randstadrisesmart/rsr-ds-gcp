@@ -384,10 +384,10 @@ CI will reject your first push if lint or tests fail. Run these checks before
 pushing — they work on Mac, Linux, and Windows:
 
 ```bash
-pip install ruff pytest pytest-cov detect-secrets
+pip install "ruff>=0.16,<1.0" pytest pytest-cov detect-secrets
 
 # Lint
-ruff check . --exclude archive/
+ruff check . --select E4,E7,E9,F --exclude archive/ --exclude integration_tests/
 
 # Test
 pytest tests/

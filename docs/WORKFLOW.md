@@ -75,7 +75,7 @@ save a round-trip:
 
 ```bash
 # Lint
-ruff check . --exclude archive/
+ruff check . --select E4,E7,E9,F --exclude archive/ --exclude integration_tests/
 
 # Test
 pytest tests/ -v
