@@ -1,6 +1,6 @@
 # Per-group Cloud Build service account
 #
-# Creates one SA per build group in OPS (e.g. svc-build-ollama, svc-build-talent).
+# Creates one SA per build group in OPS (e.g. svc-build-analysis, svc-build-ollama).
 # Multiple services share the same SA within a group.
 # The 8 cross-project IAM bindings (4 DEV + 3 PRD + 1 OPS) are provisioned
 # by the infra team once per group.
