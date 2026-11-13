@@ -81,17 +81,25 @@ integration test environment.
 
 ### 1.2 GCS data and large files
 
-**Any data your service needs at runtime (models, reference data, geojson,
-etc.) must be baked into the Docker image at build time.** Services must
-not download from GCS at runtime — the PRD runtime SA does not have access
-to DEV buckets, and runtime downloads add cold-start latency. Use the
-`_GCS_BUCKET` and `_GCS_DIRECTORIES` substitutions in your build yaml to
-download data during the CI build step, then load from the local filesystem
-at runtime (see below).
+Files over 10 MB must not be committed to git — store them in GCS instead. How
+your service loads them depends on size and update frequency:
 
-Files over 10 MB should not be committed to git. Upload them to a GCS
-bucket instead. The shared bucket `location_object` in DEV is used for
-this — both the DEV and PRD build SAs have read access to it.
+| Tier | Examples | Pattern | Why |
+|------|----------|---------|-----|
+| **Small static reference data** | `location-matcher`, `careerpath`, geojson, lookup tables | **Bake into the Docker image at build time** via `_GCS_BUCKET` / `_GCS_DIRECTORIES` into `data/` (gitignored) | Zero runtime GCS dependency, fast startup, PRD pipeline copies the built DEV image |
+| **Multi-GB model weights & fine-tuned embedders** | `job-title-matcher` | **Mount at runtime via Cloud Run `gcsfuse`** with a parallel-download file cache in `start.sh` | Avoids 800+ GB Artifact Registry bloat and full image rebuilds when model weights update |
+
+> ⚠️ **PRD bucket IAM rule:** `svc-ai-platform@rsr-ds-group-prd-83ad.iam.gserviceaccount.com`
+> has **no project-level** read access to DEV buckets. Runtime `gcsfuse` mounts
+> (or any runtime GCS reads) only work in PRD on buckets with an explicit
+> per-bucket `roles/storage.objectViewer` binding for `svc-ai-platform@prd`:
+> - `gs://rsr-ds-models` (OPS)
+> - `gs://global-taxonomy-bucket` (DEV)
+> - `gs://location_object` (DEV)
+>
+> Never write ad-hoc runtime GCS downloads against arbitrary DEV buckets — they
+> will work in DEV and fail with `403` in PRD. For build-time baking, both DEV
+> and PRD build SAs already have read access to `gs://location_object` in DEV.
 
 #### Uploading to GCS
 
@@ -113,7 +121,7 @@ gcloud storage cp ./path/to/large_file.json gs://location_object/my_folder/
 gcloud storage cp -r ./geojsonMaps gs://location_object/geojsonMaps/
 ```
 
-#### Downloading at build time (recommended)
+#### Downloading at build time (small static reference data)
 
 The build yamls include a `download-gcs-data` step that downloads files from
 GCS and bakes them into the Docker image. Set the `_GCS_BUCKET` and
@@ -147,6 +155,16 @@ model = download_from_gcs('my-bucket', 'models/my_model.sav')
 ```
 
 Add `data/` to `.gitignore` so downloaded files aren't committed.
+
+#### Mounting multi-GB models at runtime (`gcsfuse`)
+
+For multi-GB model weights or fine-tuned embedders that update independently of
+code, mount an approved bucket (`gs://rsr-ds-models`,
+`gs://global-taxonomy-bucket`, or `gs://location_object`) via Cloud Run
+`--add-volume` / `--add-volume-mount` (`gcsfuse`) in `deploy/dev-build.yaml` and
+`deploy/prod-build.yaml`, and warm a local file cache with parallel downloads in
+`start.sh` before starting the server. See `rsr-ds-job-title-matcher` (`deploy/`
+and `start.sh`) for the reference implementation.
 
 ### 1.3 Secrets
 
