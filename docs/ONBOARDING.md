@@ -2,7 +2,7 @@
 
 Step-by-step guide to migrate a service into the CI/CD pipeline.
 
-Replace `{service}` with your service name throughout (e.g. `ollama`, `taxonomy`, `langapi`).
+Replace `{service}` with your service name throughout (e.g. `cleanpii`, `skills`, `gateway`).
 
 ---
 
@@ -39,10 +39,13 @@ rsr-ds-{service}/
 > hardcodes `--cov=src` for test coverage, so your application modules
 > **must** be in `src/`. If your existing code uses a different directory
 > (e.g. `helpers/`, `lib/`), rename it to `src/` and update all imports.
-> Move any files not needed at runtime (training scripts, notebooks,
-> exploration code, old models, credential files) into `archive/`.
-> Delete any service account key files (`*.json` with `private_key`) —
-> they must not be committed.
+> Move any git-trackable files not needed at runtime (training scripts,
+> notebooks, demos, exploration or retired code) into `archive/`.
+> Delete any credential files (`adc.json`, `*.json` service account keys
+> with `private_key`, personal gcloud configs) — they must never be
+> committed, and `archive/` is git-tracked and scanned for secrets and the
+> 10 MB file size cap. Upload >10 MB model or data files to GCS instead
+> (see §1.2).
 
 **Unit tests vs integration tests:** The CI test step runs `pytest tests/`
 in a bare `python:3.11` container — not your Docker image. Tests in
@@ -354,12 +357,19 @@ pytest-cov
 ```
 __pycache__/
 *.pyc
+.venv/
+.ipynb_checkpoints/
 .pytest_cache/
 .ruff_cache/
+data/
 .env
 ```
 
 Add any service-specific entries (e.g. `*.gguf`, `models/`, large data files).
+Do **not** add `archive/` to `.gitignore` — `archive/` is git-tracked so
+offline build/training scripts, notebooks, and retired code stay versioned
+(it is excluded from the Docker image via `.dockerignore`, from lint via
+`--exclude archive/`, and from test coverage via `--cov=src`).
 
 ### 1.9 .dockerignore
 
@@ -507,9 +517,8 @@ group already exists, no new IAM request is needed.
 
 | Group | Purpose | Services |
 |-------|---------|----------|
-| `ollama` | LLM backed services | ollama, cleanpii |
-| `talent` | Talent Radar | taxonomy, digitaltwin |
-| `analysis` | Other analysis | sociallistening, qamonitoring, mrapipeline, etc. |
+| `ollama` | LLM backed services | cleanpii |
+| `analysis` | Analysis and platform services | gateway, job-title-matcher, location-matcher, skills, compensation, etc. |
 
 Pick the group that fits your service. If none fits, create a new group name —
 Terraform will create the SA automatically, and you'll need to request IAM
@@ -803,7 +812,7 @@ working correctly in production.
 ## 8. Configure Repo Settings
 
 Now that the initial deploy is done and the first build has run, configure
-the repo settings to enforce code review and squash merging.
+the repo settings to enforce code review, squash merging, and team access.
 
 ### Merge strategy
 
@@ -833,6 +842,17 @@ Save the ruleset.
 
 From now on, PRs to `main` must be approved and pass the Cloud Build check
 before merging. Direct pushes to `main` are blocked.
+
+### Collaborators and teams
+
+Grant repository access to the Data Science team and admins (including the
+`CODEOWNERS` reviewers):
+
+1. Click **Settings** at the top right of the GitHub repo
+2. Click **Collaborators and teams** in the left sidebar
+3. Click **Add teams** → add `reg-data-science` as **Maintainer**
+4. Click **Add people** → add `res-fabrizio-giuliani`, `res-giuliano-giuliani`,
+   `res-wayne-kenney`, and yourself as **Admin**
 
 ---
 

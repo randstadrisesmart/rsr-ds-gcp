@@ -20,9 +20,8 @@
 #                   use sync_tables = [] if the service has no BQ tables
 #
 # Build groups:
-#   ollama   — LLM backed services (ollama, cleanpii)
-#   talent   — Talent Radar (taxonomy, digitaltwin)
-#   analysis — Other analysis (qamonitoring, mrapipeline, etc.)
+#   ollama   — LLM backed services (cleanpii)
+#   analysis — Analysis and platform services (gateway, job-title-matcher, skills, compensation, etc.)
 #
 # sync_tables fields:
 #   dataset_name   — BQ dataset name (same in DEV and PRD)
