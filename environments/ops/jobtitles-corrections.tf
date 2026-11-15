@@ -8,7 +8,7 @@
 # it is sure about, within $50 of Vertex AI a day (the job enforces both caps,
 # so a second execution on the same day cannot double the spend).
 #
-# 14:00 UTC: after the 12:00 normalisation, so the day's new titles are in.
+# 20:00 UTC: well after the 12:00 normalisation, so the day's new titles are in.
 #
 # The job must exist before the first apply (the IAM member addresses it by
 # name): merge the taxonomy-wrapper change first, and tag a release for PRD.
@@ -48,7 +48,7 @@ resource "google_cloud_scheduler_job" "jobtitles_corrections_daily" {
   region           = local.jobtitles_corrections_region
   name             = local.jobtitles_corrections_job
   description      = "Daily correction pass: next 100k most frequent unchecked titles, $50/day cap"
-  schedule         = "0 14 * * *"
+  schedule         = "0 20 * * *"
   time_zone        = "Etc/UTC"
   attempt_deadline = "180s" # this only STARTS the execution; the run itself takes hours
 
