@@ -191,8 +191,7 @@ list.
 | Group | Purpose |
 |-------|---------|
 | `ollama` | LLM backed services |
-| `talent` | Talent Radar |
-| `analysis` | Other analysis services |
+| `analysis` | Analysis and platform services |
 
 ### Build SA roles (same for each group)
 

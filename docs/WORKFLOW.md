@@ -176,7 +176,7 @@ fails locally.
 From the root of your service repo, on your feature branch:
 
 ```bash
-# {group} = your service's build group (ollama, talent, analysis, ...)
+# {group} = your service's build group (analysis, ollama, ...)
 # Look it up in environments/ops/services.tf in the rsr-ds-gcp repo.
 
 gcloud builds submit \
