@@ -24,9 +24,10 @@
 #   4. List EVERY directory in the repo that holds a manifest (`requirements.txt`,
 #      `pyproject.toml`, `package.json`). Omitting a directory from this file
 #      only turns off *version* updates for it — repo-wide *security* updates
-#      still scan it and will open ungrouped PRs if it is not listed here.
-#      If `archive/` holds an old `requirements.txt`, use the `/archive` block
-#      below with `ignore: [{ dependency-name: "*" }]` to block all PRs from it.
+#      still scan it and will open ungrouped PRs if it is not listed here
+#      (for example, uncomment `/training` below when `training/requirements.txt`
+#      exists). If `archive/` holds an old `requirements.txt`, use the `/archive`
+#      block below with `ignore: [{ dependency-name: "*" }]` to block all PRs.
 #
 # THE IGNORE RULES  ← REVIEW THIS PER SERVICE
 #   If requirements.txt caps a major ("pandas>=2.2.0,<3.0"), that cap is load
@@ -79,16 +80,20 @@ updates:
       - dependency-name: "python"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
-  # ── OPTIONAL: extra manifests (Cloud Functions, sidecars, …) ──────────
-  # Add one block per subdirectory that has its own requirements.txt, or
-  # security updates in that directory will open ungrouped PRs.
+  # ── OPTIONAL: extra manifests (training/, Cloud Functions, sidecars, …) ─
+  # Add one block per subdirectory that has its own requirements.txt (for
+  # example `training/requirements.txt`), or security updates in that directory
+  # will open ungrouped PRs.
   # - package-ecosystem: "pip"
-  #   directory: "/functions/my_function"
+  #   directory: "/training"
   #   schedule:
   #     interval: "monthly"
   #   open-pull-requests-limit: 0
+  #   labels: ["dependencies"]
+  #   commit-message:
+  #     prefix: "deps(training)"
   #   groups:
-  #     my-function-security:
+  #     training-security:
   #       applies-to: security-updates
   #       patterns: ["*"]
 

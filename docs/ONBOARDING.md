@@ -23,14 +23,18 @@ rsr-ds-{service}/
 │   ├── module_a.py
 │   └── module_b.py
 ├── reference/                # (optional) committed static data <= 10 MB/file (crosswalks, lookups, mappings)
-├── data/                     # gitignored (/data/) — local scratch data & build-time GCS downloads
+├── data/                     # gitignored (/data/) — local scratch data, training outputs & build-time GCS downloads
+├── training/                 # (optional) model training, artifact/index builders, gold/eval scripts
+├── docs/                     # (optional) living architecture, API, and methodology docs
 ├── tests/                    # unit tests — run by CI in a bare python:3.11 container
 │   └── test_*.py             # pytest discovers these automatically
 ├── integration_tests/        # integration tests — run locally by developers (not CI)
-├── archive/                  # anything not needed for deployment
+├── archive/                  # retired/superseded code, exploratory notebooks, one-off demos
 ├── Dockerfile                # builds the deployable image
 ├── .dockerignore
 ├── .gitignore
+├── .secrets.baseline         # (optional) detect-secrets false-positive baseline (see §1.10)
+├── README.md                 # service overview, endpoints, data/model tier, local dev commands
 ├── main.py                   # entry point — imports from src/
 ├── requirements.txt          # runtime dependencies
 ├── requirements-test.txt     # test dependencies (pytest, pytest-cov)
@@ -44,14 +48,20 @@ rsr-ds-{service}/
 > Put small static data needed at runtime (**≤ 10 MB per file** — lookup
 > tables, crosswalks, rate tables, taxonomy mappings, schema JSONs/CSVs) in
 > `reference/` so it is versioned with code and never sits loose in the repo
-> root. Put local scratch data/outputs and build-time GCS downloads in
-> gitignored `data/` (`/data/` in `.gitignore`). Move any git-trackable files
-> not needed at runtime (training scripts, notebooks, demos, exploration or
-> retired code) into `archive/`. Delete any credential files (`adc.json`,
-> `*.json` service account keys with `private_key`, personal gcloud configs)
-> — they must never be committed, and both `reference/` and `archive/` are
-> git-tracked and scanned for secrets and the 10 MB file size cap. Store
-> >10 MB model or data files in GCS instead (see §1.2).
+> root. Put local scratch data/outputs, local training dumps, and build-time
+> GCS downloads in gitignored `data/` (`/data/` in `.gitignore`). Put active
+> offline model-training and artifact-building code (Vertex AI training jobs and
+> launchers, embedding/index/crosswalk builders, gold dataset & evaluation
+> scripts, and optional `training/requirements.txt`) in `training/` — **not** in
+> `archive/` or loose at the repo root. Keep living service documentation in
+> `README.md` and `docs/`, and reserve `archive/` strictly for
+> retired/superseded code, exploratory notebooks, one-off demos, and retired
+> plans/notes. Delete any
+> credential files (`adc.json`, `*.json` service account keys with `private_key`,
+> personal gcloud configs) — they must never be committed, and `reference/`,
+> `training/`, `docs/`, and `archive/` are all git-tracked and scanned for
+> secrets and the 10 MB file size cap. Store >10 MB model or data files in GCS
+> instead (see §1.2).
 
 **Unit tests vs integration tests:** The CI test step runs `pytest tests/`
 in a bare `python:3.11` container — not your Docker image, and without running
@@ -87,7 +97,7 @@ integration test environment.
   file) in `reference/`, and store larger data or model files in GCS instead
   (see §1.2)
 
-### 1.2 Data and model files (`reference/`, `data/`, and GCS)
+### 1.2 Data, model files, and offline training (`reference/`, `data/`, `training/`, and GCS)
 
 How your service stores and loads static data or model artifacts depends on file
 size and update frequency:
@@ -202,6 +212,32 @@ code, mount an approved bucket (`gs://rsr-ds-models`,
 `deploy/prod-build.yaml`, and warm a local file cache with parallel downloads in
 `start.sh` before starting the server. See `rsr-ds-job-title-matcher` (`deploy/`
 and `start.sh`) for the reference implementation.
+
+#### Model training and artifact-building code (`training/`)
+
+Put all active, reproducible code that builds or refreshes your service's model
+weights, embeddings, indexes, or reference artifacts inside **`training/`** —
+not loose at the repo root and not mixed into `archive/`:
+
+- **What belongs in `training/`:** Vertex AI custom training scripts and
+  `FLEX_START` job launchers, embedding/index/snapshot/crosswalk builders that
+  produce the artifacts in `reference/`, `data/`, or GCS, gold-dataset builders,
+  offline evaluation benchmarks, feature SQL, and `training/requirements.txt`.
+- **What belongs in `archive/`:** strictly retired/superseded code, exploratory
+  notebooks, one-off demos, and historical plans/audits kept for reference.
+- **Keep training-only dependencies out of root `requirements.txt`:** if offline
+  training or artifact builds need heavy packages that the Cloud Run serving app
+  does not import (`torch`, `transformers`, `datasets`,
+  `google-cloud-aiplatform`, `google-cloud-bigquery`), declare them in
+  `training/requirements.txt` so `{service}-pr` unit-test runs stay fast and the
+  serving image stays lean — and add a `/training` entry to
+  `.github/dependabot.yml` (see §1.4).
+- **Linted by CI, excluded from Docker:** `training/` is git-tracked and linted
+  by `ruff check` in CI (`--select E4,E7,E9,F` checks syntax, undefined names,
+  and bare `except:` without importing ML packages), scanned by `detect-secrets`
+  and the 10 MB file cap, and excluded from the runtime container via
+  `.dockerignore` (§1.9). Write training datasets, checkpoints, and outputs
+  > 10 MB to gitignored `data/` or GCS — never inside `training/`.
 
 ### 1.3 Secrets
 
@@ -356,7 +392,7 @@ House posture, encoded in the template:
 | Prefer **ranges** (`>=`, plus `<` caps where needed) in `requirements.txt`; avoid exact pins (`==`) and `pip freeze` dumps unless required | An unresolved range gives GitHub nothing to match against an advisory, so alert volume stays near zero |
 | **Security-only PRs** (`open-pull-requests-limit: 0`), **grouped** into one PR per directory | `open-pull-requests-limit: 0` disables routine version-bump churn (which otherwise rewrites `>=` lower bounds every week) while keeping `groups` and `ignore` rules active on security updates — so at most one grouped security PR opens instead of fifteen |
 | Restate every deliberate version cap as an **`ignore`** rule, scoped to `semver-major` | Dependabot cannot read the comment explaining why `pandas<3.0` or `transformers<5.0` is load bearing; the major stays blocked while security patches inside the range still land |
-| Cover **every directory** with a manifest in `dependabot.yml`, and silence `archive/` with a wildcard `ignore` (`dependency-name: "*"`) if `archive/` contains a `requirements.txt` | Omitting a directory from `dependabot.yml` only turns off *version* updates for it — org-wide *security* updates still scan the entire repo's Dependency Graph and will open ungrouped PRs unless the directory is covered (or ignored with `dependency-name: "*"`) |
+| Cover **every directory** with a manifest in `dependabot.yml` (e.g. `/training` if `training/requirements.txt` exists), and silence `archive/` with a wildcard `ignore` (`dependency-name: "*"`) if `archive/` contains a `requirements.txt` | Omitting a directory from `dependabot.yml` only turns off *version* updates for it — org-wide *security* updates still scan the entire repo's Dependency Graph and will open ungrouped PRs unless the directory is covered (or ignored with `dependency-name: "*"`) |
 
 If you lift a cap in `requirements.txt`, delete the matching `ignore` rule in
 the same commit — otherwise the bump is silently skipped. `rsr-ds-location-matcher`
@@ -398,7 +434,10 @@ Open each file and review the substitutions at the top:
 
 List your runtime Python dependencies. The CI test step runs in a plain
 `python:3.11` container (not your Docker image), so it installs these
-before running tests.
+before running tests. Keep offline model-training or artifact-building
+dependencies in `training/requirements.txt` (and register `/training` in
+`dependabot.yml` — see §1.2 and §1.4) so PR builds and runtime images only
+install what the serving app needs.
 
 ### 1.7 requirements-test.txt
 
@@ -425,27 +464,40 @@ Use `/data/` (with a leading slash) so only the top-level `data/` directory
 ignored — nested folders like `tests/data/` won't be swallowed accidentally.
 Add any service-specific entries (e.g. `*.gguf`, `models/`, large eval dumps).
 
-Do **not** add `reference/` or `archive/` to `.gitignore`:
+Do **not** add `reference/`, `training/`, `docs/`, or `archive/` to `.gitignore`:
 - **`reference/`** is git-tracked for committed static runtime data (≤ 10 MB per
   file) so it ships in the Docker image and is available to `pytest tests/` in CI.
-- **`archive/`** is git-tracked so offline build/training scripts, notebooks, and
-  retired code stay versioned (excluded from the Docker image via `.dockerignore`,
-  from lint via `--exclude archive/`, and from test coverage via `--cov=src`).
+- **`training/`** is git-tracked so active model-training, artifact/index-build,
+  and offline evaluation scripts stay versioned and linted by `ruff` in CI
+  (excluded from the runtime Docker image via `.dockerignore`; write >10 MB
+  training inputs/checkpoints/outputs to gitignored `data/` or GCS).
+- **`docs/`** is git-tracked for living architecture, API, and methodology
+  documentation (excluded from the runtime Docker image via `.dockerignore`).
+- **`archive/`** is git-tracked so retired/superseded code, exploratory
+  notebooks, and one-off demos stay versioned (excluded from the Docker image via
+  `.dockerignore`, from lint via `--exclude archive/`, and from test coverage via
+  `--cov=src`).
 
 ### 1.9 .dockerignore
 
 ```
 .git
+.github/
 .gitignore
 .dockerignore
-__pycache__
+.secrets.baseline
+README.md
+.venv/
+__pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
 .env
+docs/
 tests/
 integration_tests/
 deploy/
+training/
 archive/
 ```
 
@@ -512,7 +564,7 @@ Go to https://github.com/organizations/randstadrisesmart/repositories/new
 
 - **Name:** `rsr-ds-{service}`
 - **Visibility:** Private
-- **Do NOT** add a README, .gitignore, or license — the repo must be empty
+- **Do NOT** check GitHub's starter README, .gitignore, or license boxes — the remote repo must start empty so Step 3 pushes your local `README.md`, `.gitignore`, and service layout cleanly without a merge conflict
 
 ---
 
