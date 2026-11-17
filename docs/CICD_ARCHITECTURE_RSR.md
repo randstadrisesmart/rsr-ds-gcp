@@ -45,7 +45,10 @@ GitHub Organization: randstadrisesmart/
 │   │   ├── prod-build.yaml    # CI/CD for prod (tag)
 │   │   └── pr-build.yaml      # PR check (test + lint)
 │   ├── src/                   # App code
+│   ├── reference/             # Committed static data <= 10 MB/file (optional)
+│   ├── data/                  # Gitignored (/data/) — local & GCS-baked data
 │   ├── tests/
+│   ├── archive/               # Non-runtime scripts, notebooks, retired code
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── ...

@@ -14,7 +14,7 @@ substitutions:
   _CPU: '1'                            # increase for heavy model loading (e.g. 4)
   _TIMEOUT: '300'                      # seconds — increase for slow startup (e.g. 1800)
   _STARTUP_PROBE_THRESHOLD: '30'       # failureThreshold — increase for slow startup (e.g. 180 = 30 min)
-  # ── GCS data ——                     # to download files > 10GB during build. leave empty if none.
+  # ── GCS data ——                     # to download files > 10MB during build (<= 10MB static data goes in reference/). leave empty if none.
   _GCS_BUCKET: ''                      # e.g. location_object
   _GCS_DIRECTORIES: ''                 # comma-separated dirs (e.g. 'models,geojsonMaps,data')
   # ── Build secrets ──                # OPS secrets needed during docker build. leave empty if none.
