@@ -57,7 +57,7 @@ pytest tests/
 git status
 
 # Stage the files you want to commit
-git add server.py tests/test_server.py
+git add src/module_a.py tests/test_module_a.py
 
 # Commit with a descriptive message
 git commit -m "Add response caching for taxonomy lookups"
