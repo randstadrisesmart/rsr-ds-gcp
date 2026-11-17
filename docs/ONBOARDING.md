@@ -22,6 +22,8 @@ rsr-ds-{service}/
 ├── src/                      # Python modules referenced by main.py
 │   ├── module_a.py
 │   └── module_b.py
+├── reference/                # (optional) committed static data <= 10 MB/file (crosswalks, lookups, mappings)
+├── data/                     # gitignored (/data/) — local scratch data & build-time GCS downloads
 ├── tests/                    # unit tests — run by CI in a bare python:3.11 container
 │   └── test_*.py             # pytest discovers these automatically
 ├── integration_tests/        # integration tests — run locally by developers (not CI)
@@ -39,19 +41,24 @@ rsr-ds-{service}/
 > hardcodes `--cov=src` for test coverage, so your application modules
 > **must** be in `src/`. If your existing code uses a different directory
 > (e.g. `helpers/`, `lib/`), rename it to `src/` and update all imports.
-> Move any git-trackable files not needed at runtime (training scripts,
-> notebooks, demos, exploration or retired code) into `archive/`.
-> Delete any credential files (`adc.json`, `*.json` service account keys
-> with `private_key`, personal gcloud configs) — they must never be
-> committed, and `archive/` is git-tracked and scanned for secrets and the
-> 10 MB file size cap. Upload >10 MB model or data files to GCS instead
-> (see §1.2).
+> Put small static data needed at runtime (**≤ 10 MB per file** — lookup
+> tables, crosswalks, rate tables, taxonomy mappings, schema JSONs/CSVs) in
+> `reference/` so it is versioned with code and never sits loose in the repo
+> root. Put local scratch data/outputs and build-time GCS downloads in
+> gitignored `data/` (`/data/` in `.gitignore`). Move any git-trackable files
+> not needed at runtime (training scripts, notebooks, demos, exploration or
+> retired code) into `archive/`. Delete any credential files (`adc.json`,
+> `*.json` service account keys with `private_key`, personal gcloud configs)
+> — they must never be committed, and both `reference/` and `archive/` are
+> git-tracked and scanned for secrets and the 10 MB file size cap. Store
+> >10 MB model or data files in GCS instead (see §1.2).
 
 **Unit tests vs integration tests:** The CI test step runs `pytest tests/`
-in a bare `python:3.11` container — not your Docker image. Tests in
-`tests/` must work without the full runtime environment (no NLTK data,
-no spaCy models, no GCS model downloads, etc.). Use mocks for anything
-that needs the real environment.
+in a bare `python:3.11` container — not your Docker image, and without running
+`download-gcs-data`. Committed files in `reference/` are available directly to
+`tests/`, whereas anything requiring the full runtime environment (NLTK data,
+spaCy models, GCS-baked `data/`, runtime `gcsfuse` mounts, BigQuery, etc.) is
+not. Use mocks in `tests/` for anything outside git.
 
 Tests that need the full runtime — loading real models, calling real NLP
 pipelines, hitting real GCS buckets — belong in `integration_tests/`.
@@ -76,20 +83,48 @@ integration test environment.
   via Application Default Credentials (ADC) — no credential files are needed.
   Hardcoded paths to local `adc.json` or `~/.config/gcloud/` files will cause
   `DefaultCredentialsError` at runtime.
-- No file larger than **10 MB** in the repo — large data files should be
-  uploaded to a GCS bucket and downloaded at startup (see 1.2)
+- No file larger than **10 MB** in git — commit small static data (≤ 10 MB per
+  file) in `reference/`, and store larger data or model files in GCS instead
+  (see §1.2)
 
-### 1.2 GCS data and large files
+### 1.2 Data and model files (`reference/`, `data/`, and GCS)
 
-Files over 10 MB must not be committed to git — store them in GCS instead. How
-your service loads them depends on size and update frequency:
+How your service stores and loads static data or model artifacts depends on file
+size and update frequency:
 
-| Tier | Examples | Pattern | Why |
-|------|----------|---------|-----|
-| **Small static reference data** | `location-matcher`, `careerpath`, geojson, lookup tables | **Bake into the Docker image at build time** via `_GCS_BUCKET` / `_GCS_DIRECTORIES` into `data/` (gitignored) | Zero runtime GCS dependency, fast startup, PRD pipeline copies the built DEV image |
-| **Multi-GB model weights & fine-tuned embedders** | `job-title-matcher` | **Mount at runtime via Cloud Run `gcsfuse`** with a parallel-download file cache in `start.sh` | Avoids 800+ GB Artifact Registry bloat and full image rebuilds when model weights update |
+| Tier | Examples | Where it lives | Pattern | Why |
+|------|----------|----------------|---------|-----|
+| **1. Small static reference data (≤ 10 MB/file)** | Crosswalks, rate tables, lookup CSV/JSONs, taxonomy mappings (`skills`, `compensation`) | **`reference/`** (git-tracked) | **Commit to git** and `COPY reference/ ./reference/` in `Dockerfile` | Versioned atomically with code in PRs, available directly to `pytest tests/` in `{service}-pr`, zero GCS or IAM setup |
+| **2. Medium static data (> 10 MB to ~hundreds of MB)** | `location-matcher` snapshot, `careerpath` artifact, large geojson | **`data/`** (gitignored via `/data/`) + GCS | **Bake into the Docker image at build time** via `_GCS_BUCKET` / `_GCS_DIRECTORIES` into `data/` | Respects the 10 MB git cap, zero runtime GCS dependency, fast startup, PRD pipeline copies the built DEV image |
+| **3. Multi-GB model weights & fine-tuned embedders** | `job-title-matcher`, `skills` normalizer embedder | Approved GCS bucket mounted at `/gcs` | **Mount at runtime via Cloud Run `gcsfuse`** with a parallel-download file cache in `start.sh` | Avoids 800+ GB Artifact Registry bloat and full image rebuilds when model weights update |
 
-> ⚠️ **PRD bucket IAM rule:** `svc-ai-platform@rsr-ds-group-prd-83ad.iam.gserviceaccount.com`
+#### Committed static data (`reference/`)
+
+If your service needs small static files at runtime — lookup tables, crosswalks,
+rate tables, taxonomy hints, or JSON/CSV schemas **≤ 10 MB per file** (and small
+total footprint, e.g. under a few tens of MB across the repo) — commit them
+directly under `reference/` instead of creating a GCS bucket:
+
+- **Never drop `.csv`, `.json`, or `.parquet` files loose at the repo root** —
+  keep committed runtime data inside `reference/`.
+- **Include `reference/` in your `Dockerfile`:** if your `Dockerfile` copies
+  explicit paths (`COPY src/ ./src/`) instead of `COPY . .`, add
+  `COPY reference/ ./reference/` so the files exist at `/app/reference/...` in
+  the container:
+  ```dockerfile
+  COPY src/ ./src/
+  COPY reference/ ./reference/
+  COPY main.py .
+  ```
+- **Unit tests work out of the box:** because `reference/` is tracked in git,
+  `pytest tests/` in `{service}-pr` and `{service}-dev` can read from
+  `reference/...` directly without GCS mocks.
+- **CI gates still apply:** `detect-secrets` and the 10 MB `check-file-sizes`
+  step scan every tracked file, including `reference/`. Never place credentials
+  there, and if a file grows past 10 MB (or updates independently of code
+  releases), move it to Tier 2 or Tier 3 below.
+
+> ⚠️ **PRD bucket IAM rule (Tiers 2 & 3):** `svc-ai-platform@rsr-ds-group-prd-83ad.iam.gserviceaccount.com`
 > has **no project-level** read access to DEV buckets. Runtime `gcsfuse` mounts
 > (or any runtime GCS reads) only work in PRD on buckets with an explicit
 > per-bucket `roles/storage.objectViewer` binding for `svc-ai-platform@prd`:
@@ -99,9 +134,9 @@ your service loads them depends on size and update frequency:
 >
 > Never write ad-hoc runtime GCS downloads against arbitrary DEV buckets — they
 > will work in DEV and fail with `403` in PRD. For build-time baking, both DEV
-> and PRD build SAs already have read access to `gs://location_object` in DEV.
+> and PRD build SAs already have read access to DEV buckets.
 
-#### Uploading to GCS
+#### Uploading to GCS (files > 10 MB)
 
 **Option A — from the console:**
 
@@ -121,7 +156,7 @@ gcloud storage cp ./path/to/large_file.json gs://location_object/my_folder/
 gcloud storage cp -r ./geojsonMaps gs://location_object/geojsonMaps/
 ```
 
-#### Downloading at build time (small static reference data)
+#### Downloading at build time (static data > 10 MB)
 
 The build yamls include a `download-gcs-data` step that downloads files from
 GCS and bakes them into the Docker image. Set the `_GCS_BUCKET` and
@@ -136,25 +171,27 @@ The data is downloaded into the build workspace, then baked into the DEV
 image via `docker build`. The prod pipeline copies that same image — no
 re-download needed.
 
-**Put downloaded data in a `data/` directory.** The `download-gcs-data`
-step downloads directories into the build workspace root by default. To
-keep the workspace clean, structure your service so that all downloaded
-data lives under `data/` and your application code references paths
-relative to that directory (e.g. `data/models/my_model.sav`). Add
-`data/` to `.gitignore` so it isn't committed.
+**Put downloaded data in the top-level `data/` directory.** Structure your
+service so that build-time GCS downloads and local scratch/dev datasets live
+under `data/` and your application code references paths relative to that
+directory (e.g. `data/models/my_model.sav`). Anchor `/data/` in `.gitignore`
+(with a leading slash — see §1.8) so downloaded and local files aren't
+committed.
 
 Your application code should load from the local filesystem, not from GCS:
 
 ```python
-# Good — load from local path (baked into image at build time)
+# Good — small committed lookup in reference/ (<= 10 MB, tracked in git)
+with open('reference/crosswalk.json', encoding='utf-8') as f:
+    crosswalk = json.load(f)
+
+# Good — >10 MB artifact in data/ (baked into image at build time)
 with open('data/models/my_model.sav', 'rb') as f:
     model = pickle.load(f)
 
-# Bad — downloads from GCS at runtime (won't work in PRD)
+# Bad — downloads from arbitrary DEV bucket at runtime (fails with 403 in PRD)
 model = download_from_gcs('my-bucket', 'models/my_model.sav')
 ```
-
-Add `data/` to `.gitignore` so downloaded files aren't committed.
 
 #### Mounting multi-GB models at runtime (`gcsfuse`)
 
@@ -379,15 +416,21 @@ __pycache__/
 .ipynb_checkpoints/
 .pytest_cache/
 .ruff_cache/
-data/
+/data/
 .env
 ```
 
-Add any service-specific entries (e.g. `*.gguf`, `models/`, large data files).
-Do **not** add `archive/` to `.gitignore` — `archive/` is git-tracked so
-offline build/training scripts, notebooks, and retired code stay versioned
-(it is excluded from the Docker image via `.dockerignore`, from lint via
-`--exclude archive/`, and from test coverage via `--cov=src`).
+Use `/data/` (with a leading slash) so only the top-level `data/` directory
+(local scratch files, >10 MB artifacts, and build-time GCS downloads) is
+ignored — nested folders like `tests/data/` won't be swallowed accidentally.
+Add any service-specific entries (e.g. `*.gguf`, `models/`, large eval dumps).
+
+Do **not** add `reference/` or `archive/` to `.gitignore`:
+- **`reference/`** is git-tracked for committed static runtime data (≤ 10 MB per
+  file) so it ships in the Docker image and is available to `pytest tests/` in CI.
+- **`archive/`** is git-tracked so offline build/training scripts, notebooks, and
+  retired code stay versioned (excluded from the Docker image via `.dockerignore`,
+  from lint via `--exclude archive/`, and from test coverage via `--cov=src`).
 
 ### 1.9 .dockerignore
 
@@ -406,6 +449,13 @@ deploy/
 archive/
 ```
 
+Keep `reference/` **out** of `.dockerignore` so committed runtime reference data
+can be `COPY`ed into the image. Keep `data/` out of `.dockerignore` if your
+service bakes build-time GCS downloads from `./data/` into the image (§1.2); if
+your service uses no build-time GCS data and your `Dockerfile` uses `COPY . .`,
+add `/data/` here so local scratch files in `./data/` aren't copied into local
+Docker builds.
+
 ### 1.10 Pre-flight: lint, test, and scan locally
 
 CI will reject your first push if lint or tests fail. Run these checks before
@@ -423,13 +473,14 @@ pytest tests/
 # Scan for hardcoded secrets (API keys, passwords, tokens)
 detect-secrets scan --all-files .
 
-# Check for files over 10 MB (should not be committed — upload to GCS instead)
-python3 -c "import os; [print(f'{os.path.getsize(os.path.join(r,f))/1e6:.1f}MB {os.path.join(r,f)}') for r,d,fs in os.walk('.') for f in fs if os.path.getsize(os.path.join(r,f))>10_000_000 and '.git' not in r]"
+# Check for files over 10 MB outside gitignored /data/ and .venv/ (upload >10 MB files to GCS instead)
+python3 -c "import os; [print(f'{os.path.getsize(os.path.join(r,f))/1e6:.1f}MB {os.path.join(r,f)}') for r,d,fs in os.walk('.') for f in fs if os.path.getsize(os.path.join(r,f))>10_000_000 and os.path.relpath(r,'.').split(os.sep)[0] not in ('.git','.venv','data')]"
 ```
 
 If `detect-secrets` finds anything, move those values to Secret Manager
-(see 1.3). If the file size check finds anything, upload the file to GCS
-and download it at startup instead of committing it (see 1.2).
+(see 1.3). If the file size check finds anything, move it out of git into GCS
+and bake it at build time or mount it via `gcsfuse` instead of committing it
+(see §1.2).
 
 #### False positives in secret scanning
 

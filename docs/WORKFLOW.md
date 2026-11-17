@@ -83,8 +83,8 @@ pytest tests/ -v
 # Scan for hardcoded secrets (API keys, passwords, tokens)
 detect-secrets scan --all-files .
 
-# Check for files over 10 MB (should not be committed — upload to GCS instead)
-python3 -c "import os; [print(f'{os.path.getsize(os.path.join(r,f))/1e6:.1f}MB {os.path.join(r,f)}') for r,d,fs in os.walk('.') for f in fs if os.path.getsize(os.path.join(r,f))>10_000_000 and '.git' not in r]"
+# Check for tracked files over 10 MB (should not be committed — upload to GCS instead)
+python3 -c "import os,subprocess; [print(f'{os.path.getsize(f)/1e6:.1f}MB {f}') for f in subprocess.check_output(['git','ls-files'],text=True).splitlines() if os.path.exists(f) and os.path.getsize(f)>10_000_000]"
 ```
 
 If `detect-secrets` flags false positives (e.g. the word "secret" in a
