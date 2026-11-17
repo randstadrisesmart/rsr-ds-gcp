@@ -47,9 +47,12 @@ GitHub Organization: randstadrisesmart/
 │   ├── src/                   # App code
 │   ├── reference/             # Committed static data <= 10 MB/file (optional)
 │   ├── data/                  # Gitignored (/data/) — local & GCS-baked data
+│   ├── training/              # Model training, artifact/index builders, eval scripts (optional)
+│   ├── docs/                  # Living architecture & API docs (optional)
 │   ├── tests/
-│   ├── archive/               # Non-runtime scripts, notebooks, retired code
+│   ├── archive/               # Retired code, exploratory notebooks, one-off demos
 │   ├── Dockerfile
+│   ├── README.md
 │   ├── requirements.txt
 │   └── ...
 │
