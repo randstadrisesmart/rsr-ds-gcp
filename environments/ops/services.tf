@@ -53,6 +53,14 @@ locals {
       region      = "europe-west1" # matches deploy/*.yaml _REGION
       sync_tables = []             # BQML models live in DEV; PROD.md lists what PRD still needs
     }
+    career-comp-wrapper = {
+      # Career Path and Compensation Wrapper microservice.
+      # Unifies careerpath, compensation, and job-title-matcher into a single advisory API.
+      repo        = "rsr-ds-career-comp-wrapper"
+      build_group = "analysis"
+      region      = "europe-west1"
+      sync_tables = []
+    }
     api-activity-monitoring = {
       repo        = "rsr-ds-api-activity-monitoring"
       build_group = "analysis"
