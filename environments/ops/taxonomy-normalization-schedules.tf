@@ -16,8 +16,9 @@
 #
 # The scheduler calls the Cloud Run Admin API (v1 :run) as the project's
 # svc-ai-platform account, which already holds run.jobs.run on them; no IAM is
-# managed here. The retries are the API's (the jobs were created with its
-# defaults), so no retry_config block: see jobtitles-retrain.tf.
+# managed here. The retry_config is the one the API gave these jobs when they
+# were created (no retries, its default backoff), written out because the API
+# echoes it back: without it every plan would show it being removed.
 
 locals {
   taxonomy_normalization_region = "europe-west1"
@@ -63,6 +64,14 @@ resource "google_cloud_scheduler_job" "taxonomy_normalization" {
   schedule         = each.value.schedule
   time_zone        = "UTC"
   attempt_deadline = "180s" # this only STARTS the execution; the run itself takes minutes
+
+  retry_config {
+    retry_count          = 0
+    max_retry_duration   = "0s"
+    min_backoff_duration = "5s"
+    max_backoff_duration = "3600s"
+    max_doublings        = 5
+  }
 
   http_target {
     http_method = "POST"
