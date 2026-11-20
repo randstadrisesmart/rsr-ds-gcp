@@ -10,9 +10,11 @@ set -euo pipefail
 : "${DRY_RUN:?}" "${PROJECTS:?}" "${REPOS:?}" "${MIN_AGE_H:?}"
 
 WORK=$(mktemp -d)
-REF="$WORK/referenced.txt"     # one "<image-path>@sha256:..." per line
-INV="$WORK/inventory.txt"      # "<image-path>@sha256:...|<tags>|<createTime>" per line
-: > "$REF"; : > "$INV"
+REF="$WORK/referenced.txt"             # one "<image-path>@sha256:..." per line
+WORKLOADS="$WORK/live_workloads.txt"   # "<project>|<region>|<name>|<images>" per live service/job
+LIVE_PKGS="$WORK/live_latest_pkgs.txt" # "<region>-docker.pkg.dev/<project>/<repo>/<pkg>" eligible to keep :latest
+INV="$WORK/inventory.txt"              # "<image-path>@sha256:...|<tags>|<createTime>" per line
+: > "$REF"; : > "$WORKLOADS"; : > "$LIVE_PKGS"; : > "$INV"
 
 log() { echo "[$(date -u +%H:%M:%S)] $*"; }
 
@@ -24,20 +26,48 @@ must_nonempty() { # file, what
 
 # ── 1. referenced: every image pinned by a Cloud Run revision or job ──────────
 for P in $PROJECTS; do
+  gcloud run services list --project="$P" \
+    --format="csv[no-heading,separator='|'](metadata.labels.'cloud.googleapis.com/location',metadata.name,spec.template.spec.containers[].image)" \
+    | awk -F'|' -v p="$P" '{ gsub(/"/,""); if (NF>=2 && $1!="" && $2!="") print p "|" $1 "|" $2 "|" $3 }' >> "$WORKLOADS"
+  : > "$WORK/jobs_project.txt"
+  gcloud run jobs list --project="$P" \
+    --format="csv[no-heading,separator='|'](metadata.labels.'cloud.googleapis.com/location',metadata.name,spec.template.spec.template.spec.containers[].image)" > "$WORK/jobs_project.txt"
+  awk -F'|' '{ gsub(/"/,""); if (NF>=3 && $3!="") print $3 }' "$WORK/jobs_project.txt" >> "$REF"
+  awk -F'|' -v p="$P" '{ gsub(/"/,""); if (NF>=2 && $1!="" && $2!="") print p "|" $1 "|" $2 "|" $3 }' "$WORK/jobs_project.txt" >> "$WORKLOADS"
+
   REGIONS=$(gcloud run regions list --project="$P" --format="value(locationId)")
   [ -n "$REGIONS" ] || { echo "ABORT: no Cloud Run regions listed for $P" >&2; exit 2; }
   for R in $REGIONS; do
     gcloud run revisions list --project="$P" --region="$R" \
       --format="value(spec.containers[].image)" >> "$REF"
-    gcloud run jobs list --project="$P" --region="$R" \
-      --format="value(spec.template.spec.template.spec.containers[].image)" >> "$REF"
   done
 done
 # Flatten "a;b" multi-container cells, drop images outside our registries.
 sed -i 's/;/\n/g' "$REF"
 grep -E '^[a-z0-9-]+-docker\.pkg\.dev/' "$REF" | sort -u > "$REF.ours" || true
 must_nonempty "$REF" "Cloud Run revision/job listing"
+must_nonempty "$WORKLOADS" "live Cloud Run service/job listing"
 log "referenced images in Cloud Run: $(wc -l < "$REF.ours") (of $(sort -u "$REF" | wc -l) distinct)"
+
+# Keep :latest ONLY for packages backed by an existing Cloud Run service or job
+# in the same (project, region) — either its deployed image package, or its
+# companion <stem>-vertex-job image (for live <stem> / <stem>-orchestrator).
+awk -F'|' '{
+  p = $1; r = $2; name = $3; imgs = $4
+  n = split(imgs, arr, ";")
+  for (i = 1; i <= n; i++) {
+    img = arr[i]
+    sub(/@.*/, "", img)
+    sub(/:.*/, "", img)
+    if (index(img, "-docker.pkg.dev/") > 0) print img
+  }
+  stem = name
+  sub(/-orchestrator$/, "", stem)
+  print r "-docker.pkg.dev/" p "/docker-images/" name "-vertex-job"
+  print r "-docker.pkg.dev/" p "/docker-images/" stem "-vertex-job"
+}' "$WORKLOADS" | sort -u > "$LIVE_PKGS"
+must_nonempty "$LIVE_PKGS" "live latest-eligible package set"
+log "live packages eligible to keep :latest: $(wc -l < "$LIVE_PKGS")"
 
 # Tag references (e.g. jobtitle-normalizer:140fc82) resolve to the digest that
 # carries the tag right now. A tag that no longer resolves is a dangling
@@ -82,7 +112,7 @@ while IFS='|' read -r IMG TAGS CREATED; do
   AGE_H=$(( (NOW - $(date -u -d "$CREATED" +%s)) / 3600 ))
   if grep -qxF "$IMG" "$REF.digests"; then
     echo "$IMG|cloud-run" >> "$WORK/keep.txt"
-  elif [[ ",$TAGS," == *",latest,"* ]]; then
+  elif [[ ",$TAGS," == *",latest,"* ]] && grep -qxF "${IMG%@*}" "$LIVE_PKGS"; then
     echo "$IMG|latest-tag" >> "$WORK/keep.txt"
   elif [ "$AGE_H" -lt "$MIN_AGE_H" ]; then
     echo "$IMG|younger-than-${MIN_AGE_H}h" >> "$WORK/keep.txt"

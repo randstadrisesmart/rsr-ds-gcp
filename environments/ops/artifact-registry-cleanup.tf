@@ -12,8 +12,11 @@
 #     A revision keeps its image for as long as the revision exists; delete the
 #     revision and the image becomes deletable on the next run.
 #   * a Cloud Run job in DEV or PRD (the taxonomy jobs pin commit-SHA tags).
-#   * the `latest` tag. Vertex AI training jobs (demand, supply, horizon) submit
-#     `<package>:latest` on every run and nothing else records that reference.
+#   * the `latest` tag on packages backed by an existing Cloud Run service or
+#     job in the same (project, region) — including companion `<stem>-vertex-job`
+#     images for live `<stem>` / `<stem>-orchestrator` workloads (demand, supply,
+#     horizon, and any future Vertex job service). Deleted services, deleted jobs,
+#     and abandoned regions lose `latest` protection automatically.
 # Everything else is DELETED once it is older than 7 days. Machine paths only
 # need minutes (build push -> deploy pin); the week is margin for a person who
 # deleted a revision and wants its image back.
@@ -56,7 +59,7 @@ resource "google_cloudbuild_trigger" "artifact_registry_cleanup" {
   project     = local.ar_cleanup.project_ops
   name        = "artifact-registry-cleanup"
   location    = "global"
-  description = "Delete container images no Cloud Run revision/job or latest tag references (older than ${local.ar_cleanup.min_age_h}h). Weekly via Cloud Scheduler; run by hand for an immediate pass."
+  description = "Delete container images no live Cloud Run service/job references (older than ${local.ar_cleanup.min_age_h}h). Daily via Cloud Scheduler; run by hand for an immediate pass."
 
   # Manual trigger: no repo, no event. Fired by Cloud Scheduler below or from the console.
   source_to_build {
@@ -98,13 +101,13 @@ resource "google_cloudbuild_trigger" "artifact_registry_cleanup" {
   }
 }
 
-# Weekly, Monday 03:00 UTC, before the working day in Europe.
+# Daily, 03:00 UTC, before the working day in Europe.
 resource "google_cloud_scheduler_job" "artifact_registry_cleanup" {
   project          = local.ar_cleanup.project_ops
   region           = local.ar_cleanup.region
-  name             = "artifact-registry-cleanup-weekly"
-  description      = "Run the artifact-registry-cleanup Cloud Build trigger"
-  schedule         = "0 3 * * 1"
+  name             = "artifact-registry-cleanup-weekly" # kept from initial setup for in-place update
+  description      = "Run the artifact-registry-cleanup Cloud Build trigger daily"
+  schedule         = "0 3 * * *"
   time_zone        = "Etc/UTC"
   attempt_deadline = "180s" # only starts the build
 
