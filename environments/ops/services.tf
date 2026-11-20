@@ -11,8 +11,12 @@
 #   iap           — (optional, default false) enable IAP on the Cloud Run service
 #                   for frontend/UI services that users access in a browser
 #   path          — (optional) subfolder of a monorepo that holds this component;
-#                   its configs are <path>/deploy/*.yaml. Triggers are named after
+#                   its configs are <path>/deploy/*.yaml, and its dev trigger
+#                   defaults included_files to ["<path>/**"] so main merges only
+#                   build components whose folder changed. Triggers are named after
 #                   the registry key, and the key is the _SERVICE_NAME the build gets.
+#   included_files — (optional) override dev trigger included_files globs (e.g.
+#                   ["<path>/**", "shared/**"], or [] to build on every push)
 #   comment_control — (optional, default false) PR builds wait for "/gcbrun"
 #   dev_enabled / prd_enabled — (optional, default true) false keeps that trigger
 #                   disabled (a component without that deploy config)

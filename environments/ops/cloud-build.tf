@@ -63,4 +63,5 @@ module "cloud_build_trigger" {
   dev_enabled     = lookup(each.value, "dev_enabled", true)
   prd_enabled     = lookup(each.value, "prd_enabled", true)
   descriptions    = lookup(each.value, "descriptions", {})
+  included_files  = lookup(each.value, "included_files", null)
 }
