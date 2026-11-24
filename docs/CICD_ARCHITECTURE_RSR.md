@@ -50,7 +50,7 @@ GitHub Organization: randstadrisesmart/
 │   ├── training/              # Model training, artifact/index builders, eval scripts (optional)
 │   ├── docs/                  # Living architecture & API docs (optional)
 │   ├── tests/
-│   ├── archive/               # Retired code, exploratory notebooks, one-off demos
+│   ├── archive/               # Non-runtime notebooks, one-off demos, retired plans/audits
 │   ├── Dockerfile
 │   ├── README.md
 │   ├── requirements.txt
