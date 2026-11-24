@@ -29,7 +29,7 @@ rsr-ds-{service}/
 ├── tests/                    # unit tests — run by CI in a bare python:3.11 container
 │   └── test_*.py             # pytest discovers these automatically
 ├── integration_tests/        # integration tests — run locally by developers (not CI)
-├── archive/                  # retired/superseded code, exploratory notebooks, one-off demos
+├── archive/                  # non-runtime exploratory notebooks, one-off demos, retired plans/audits
 ├── Dockerfile                # builds the deployable image
 ├── .dockerignore
 ├── .gitignore
@@ -54,9 +54,11 @@ rsr-ds-{service}/
 > launchers, embedding/index/crosswalk builders, gold dataset & evaluation
 > scripts, and optional `training/requirements.txt`) in `training/` — **not** in
 > `archive/` or loose at the repo root. Keep living service documentation in
-> `README.md` and `docs/`, and reserve `archive/` strictly for
-> retired/superseded code, exploratory notebooks, one-off demos, and retired
-> plans/notes. Delete any
+> `README.md` and `docs/`, **`git rm`** superseded git-tracked `src/`/`tests/`
+> modules during rewrites (Git history and release tags already archive them —
+> do not hoard `archive/v1_*.py` copies), and reserve `archive/` strictly for
+> non-runtime exploratory notebooks, one-off demos, and retired plans/notes.
+> Delete any
 > credential files (`adc.json`, `*.json` service account keys with `private_key`,
 > personal gcloud configs) — they must never be committed, and `reference/`,
 > `training/`, `docs/`, and `archive/` are all git-tracked and scanned for
@@ -223,8 +225,10 @@ not loose at the repo root and not mixed into `archive/`:
   `FLEX_START` job launchers, embedding/index/snapshot/crosswalk builders that
   produce the artifacts in `reference/`, `data/`, or GCS, gold-dataset builders,
   offline evaluation benchmarks, feature SQL, and `training/requirements.txt`.
-- **What belongs in `archive/`:** strictly retired/superseded code, exploratory
-  notebooks, one-off demos, and historical plans/audits kept for reference.
+- **What belongs in `archive/`:** strictly non-runtime exploratory notebooks,
+  one-off demos, and historical plans/audits kept for reference (superseded
+  git-tracked runtime/test modules belong in Git history via `git rm`, not
+  copied into `archive/`).
 - **Keep training-only dependencies out of root `requirements.txt`:** if offline
   training or artifact builds need heavy packages that the Cloud Run serving app
   does not import (`torch`, `transformers`, `datasets`,
@@ -473,10 +477,11 @@ Do **not** add `reference/`, `training/`, `docs/`, or `archive/` to `.gitignore`
   training inputs/checkpoints/outputs to gitignored `data/` or GCS).
 - **`docs/`** is git-tracked for living architecture, API, and methodology
   documentation (excluded from the runtime Docker image via `.dockerignore`).
-- **`archive/`** is git-tracked so retired/superseded code, exploratory
-  notebooks, and one-off demos stay versioned (excluded from the Docker image via
-  `.dockerignore`, from lint via `--exclude archive/`, and from test coverage via
-  `--cov=src`).
+- **`archive/`** is git-tracked so non-runtime exploratory notebooks, one-off
+  demos, and historical plans/audits stay versioned (excluded from the Docker
+  image via `.dockerignore`, from lint via `--exclude archive/`, and from test
+  coverage via `--cov=src`; use `git rm` rather than `archive/` when retiring
+  git-tracked `src/`/`tests/` modules).
 
 ### 1.9 .dockerignore
 
