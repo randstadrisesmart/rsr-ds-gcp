@@ -198,17 +198,8 @@ locals {
     location-matcher = {
       repo        = "rsr-ds-location-matcher"
       build_group = "analysis"
-      region      = "europe-west1" # matches deploy/*.yaml _REGION and the BQ datasets; Gemini is on `global`
-      sync_tables = [
-        # Queried at runtime by app/matcher.py via load_country_mapping().
-        # Only 256 rows and rarely changes, but PRD hard-fails without it.
-        { dataset_name = "location_normalization_model_EU", table_name = "country_mapping_clean", sync_frequency = "weekly", region = "europe-west1" },
-        # Fallback only — the reference snapshot is baked into the image at
-        # build time from gs://location_object/data/. This exists so the
-        # BigQuery fallback path in app/reference_data.py still works in PRD.
-        # 3M rows / ~337MB, so clone once rather than on every run.
-        { dataset_name = "location_normalization_model_EU", table_name = "universal_locations_reference_dataset_with_variance", sync_frequency = "once", region = "europe-west1" },
-      ]
+      region      = "europe-west1" # matches deploy/*.yaml _REGION
+      sync_tables = []             # no runtime BQ tables in v2.0+; models/indices mounted from gs://global-taxonomy-bucket
     }
     sentiment-analysis = {
       repo        = "rsr-ds-sentiment-analysis"
